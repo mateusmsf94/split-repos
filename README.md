@@ -34,7 +34,7 @@ pxe-adapter/        → split-core, split-eventos
 | `TipoRetorno`, `TipoInforme`, `TipoOcorrencia`, `MotivoOcorrencia` | split-core | depois |
 | `IdRepasse`, `IdInformeSegregacao`, `IdLote`, `IdOcorrencia`, `Parecer` | split-core | depois: segregação e MOC |
 | `Transacao`, `VersaoTransacao`, `IndiceIdentificador`, `Pagamento`, `DeclaracaoFiscal`, `RecebedorIndireto`, `CalculoSegregacao` | oracle-service | agora |
-| `DadosBoleto`, `DadosPagamentoBoleto`, `JanelaSuperInteligenteAberta`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `ValorVigenteBoleto`, `CursorStream` | oracle-service | depois: Super Inteligente |
+| `DadosBoleto`, `DadosPagamentoBoleto`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `ValorVigenteBoleto`, `CursorStream` | oracle-service | depois: Super Inteligente |
 | `TransacaoEmAnalise`, `AnaliseConcluida`, `Ocorrencia`, `RespostaOcorrencia`, `CursorOcorrencias` | oracle-service | depois: MOC |
 | `PendenciaEnvio`, `Requisicao`, `ItemEnviado`, `ItemRejeitado` | oracle-service | depois: envio à PP |
 | `RemessaIniciada`, `LoteEnviado`, `ItemLote`, `RemessaFinalizada`, `RepasseExecutado`, `ItemRepasseBoleto`, `MarcoTemporal` | oracle-service | depois: segregação e repasse |
@@ -70,14 +70,25 @@ pxe-adapter/        → split-core, split-eventos
   - `DeclaracaoFiscal` usa a mesma chave (txKey, versao) e perdeu `registradaEm`: o horário é o da versão, e vai como `dtHrIni`, `dtHrAtu` ou `dtHrBaixa`.
   - A Baixa não apaga mais a declaração. A remoção dos campos fiscais é uma versão sem declaração; cancelamento e expiração são uma versão `encerrada`.
   - `VersaoTransacao.informe(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
-  - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado`, `ItemLote` e `CalculoSegregacao` ganharam `versao`: o que foi enviado é reconstruível mesmo depois de a transação mudar.
+  - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado` e `CalculoSegregacao` ganharam `versao` (o `ItemLote` a recebe do `ItemEnviado`): o que foi enviado é reconstruível mesmo depois de a transação mudar.
 - `Validacoes.numPgto` aplica o limite de 1 a 999.999.999 nos records que são por pagamento.
 - **Boleto visto do PSP.** O sistema é só PSP. No Boleto, a Núclea envia os informes, consome o Retorno e calcula o segregado
   (Operações §4.1 e §5.4); ao PSP ficam o registro do boleto na Núclea, o Repasse Financeiro e o MOC. `Arranjo.viaNuclea()` diz isso.
-  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente` e `RemessaIniciada`. `VersaoTransacao.informe` devolve vazio: a versão vai à Núclea.
+  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente`, `RemessaIniciada` e `Segregacao.calcular`. `VersaoTransacao.informe` devolve vazio: a versão vai à Núclea.
   - `DadosPagamentoBoleto` ganhou o CBS/IBS Segregado que a Núclea calculou e manda na baixa. No Boleto não há `CalculoSegregacao`.
   - `ItemRepasseBoleto` diz em qual repasse entra cada pagamento de Boleto, papel que nos outros arranjos é da remessa do próprio PSP.
   - `ValorVigenteBoleto` guarda só os valores vigentes que a Núclea manda, sem NSU: o PSP não lê o stream do Boleto nem calcula com eles.
+- **Retorno por versão de cálculo.** Uma Atualizada que muda valor, CBS/IBS Informado ou docFiscal invalida os retornos anteriores (Operações §4.2.1).
+  - `VersaoTransacao.mudaCalculo(...)` diz se a versão muda o cálculo; a última que mudou é a versão de cálculo.
+  - `RetornoSuperInteligente` e `ValorVigente` ganharam `versao`. `ValorVigente.valorDe` recebe a versão de cálculo e devolve vazio para a linha de outra versão.
+  - `Requisicao` ganhou `respondidaEm`: o RSUP não traz versão, e é a resposta da PP ao informe que separa os retornos de cada versão.
+- **Lote por tentativa.** O reenvio de um idLote substitui o lote na PP, mas não apaga a tentativa anterior aqui.
+  - `LoteEnviado` virou (jti, idLote): horário, status e resourceId já estavam em `Requisicao`.
+  - `ItemLote` usa a chave de `ItemEnviado`, (jti, indice), e ficou só com os valores; pagamento e versão vêm de `ItemEnviado`.
+  - A finalização soma os itens da tentativa vigente de cada lote: a última com 200 ou 201.
+- **`JanelaSuperInteligenteAberta` saiu.** A janela é derivada dos informes aceitos (Iniciada, Baixa, pagamento integral); está descrita em `VersaoTransacao`.
+- **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
+  `Validacoes.numPgto(informe, numPgto)` confere isso em `PendenciaEnvio`; `TipoInforme.daTransacao()` e `daRemessa()` separam os informes.
 
 ## Em aberto nestes arquivos
 
@@ -90,6 +101,8 @@ pxe-adapter/        → split-core, split-eventos
 - **Interface com a Núclea no Boleto.** Os manuais da PP não a descrevem. Falta confirmar, porque decide quanto o PSP repassa:
   - como o PSP sabe em qual Informe de Segregação a Núclea incluiu cada pagamento (`ItemRepasseBoleto`);
   - como o PSP avisa a Núclea de um Impeditivo Não Contratual, para ela tirar o pagamento do informe.
+- **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
+  conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Ainda não existem:**
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;

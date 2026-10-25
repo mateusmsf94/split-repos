@@ -75,6 +75,16 @@ public final class Validacoes {
         faixa(numPgto, 1, 999_999_999, "numPgto");
     }
 
+    /** numPgto de um informe: SEM_PAGAMENTO nos da transação, de 1 a 999.999.999 nos demais. */
+    public static void numPgto(TipoInforme informe, int numPgto) {
+        if (informe.daRemessa()) throw new IllegalArgumentException(informe + " é da remessa, não de uma transação");
+        if (!informe.daTransacao()) {
+            numPgto(numPgto);
+        } else if (numPgto != TipoInforme.SEM_PAGAMENTO) {
+            throw new IllegalArgumentException(informe + " não tem pagamento: numPgto = " + TipoInforme.SEM_PAGAMENTO);
+        }
+    }
+
     public static LocalDate lerData(String aaaammdd) {
         try {
             return LocalDate.parse(aaaammdd, AAAAMMDD);

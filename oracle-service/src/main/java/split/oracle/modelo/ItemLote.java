@@ -1,25 +1,26 @@
 package split.oracle.modelo;
 
-import split.core.IdLote;
+import java.util.UUID;
+
 import split.core.Validacoes;
 
 /**
- * Tabela ITEM_LOTE: os valores exatamente como enviados. Chave: (lote, indice).
- * versao: a de VERSAO_TRANSACAO usada no cálculo. Dela saem docFiscal e cnpjRec do item.
+ * Tabela ITEM_LOTE: os valores exatamente como enviados em uma tentativa de lote. Chave: (jti, indice),
+ * a mesma de ITEM_ENVIADO, que diz de qual pagamento e versão é o item.
+ * Por tentativa, não por idLote: o reenvio substitui o lote na PP, mas a tentativa anterior continua aqui.
  * dtHrRepasse não fica aqui: é derivado do repasse da remessa na hora de montar o JSON.
  */
 public record ItemLote(
-        IdLote lote,
+        UUID jti,
         int indice,
-        long txKey,
-        int numPgto,
-        int versao,
         long valorPagoCentavos,
         long cbsSegregadoCentavos,
         long ibsSegregadoCentavos) {
 
     public ItemLote {
         Validacoes.indice(indice);
-        Validacoes.numPgto(numPgto);
+        Validacoes.naoNegativo(valorPagoCentavos, "vlPago");
+        Validacoes.naoNegativo(cbsSegregadoCentavos, "vlCbsSegr");
+        Validacoes.naoNegativo(ibsSegregadoCentavos, "vlIbsSegr");
     }
 }

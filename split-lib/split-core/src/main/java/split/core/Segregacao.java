@@ -19,9 +19,11 @@ public final class Segregacao {
     /**
      * Calcula um tributo. corrigido / emAberto vazios = não existe retorno.
      * Vazio é diferente de zero: EM ABERTO = 0 segrega zero.
+     * Não calcula Boleto: lá o segregado vem pronto da Núclea (Operações §5.4).
      */
     public static Resultado calcular(Arranjo arranjo, long valorPago, long valorOriginal, long informado,
                                      OptionalLong corrigido, OptionalLong emAberto) {
+        if (arranjo.viaNuclea()) throw new IllegalArgumentException("no Boleto quem calcula o segregado é a Núclea");
         Validacoes.naoNegativo(valorPago, "vlPago");
         Validacoes.naoNegativo(valorOriginal, "valor original");
         Validacoes.naoNegativo(informado, "valor informado");

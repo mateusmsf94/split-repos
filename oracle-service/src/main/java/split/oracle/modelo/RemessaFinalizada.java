@@ -14,7 +14,10 @@ public record RemessaFinalizada(
         Instant finalizadaEm,
         String resourceId) {
 
-    /** Sem itens dá zero em tudo: a remessa sem transações também é obrigatória. */
+    /**
+     * itens: os da tentativa vigente de cada lote da remessa (LOTE_ENVIADO), nunca os de uma tentativa substituída.
+     * Sem itens dá zero em tudo: a remessa sem transações também é obrigatória.
+     */
     public static RemessaFinalizada aPartirDe(IdInformeSegregacao id, Collection<ItemLote> itens, Instant em, String resourceId) {
         long cbs = 0;
         long ibs = 0;

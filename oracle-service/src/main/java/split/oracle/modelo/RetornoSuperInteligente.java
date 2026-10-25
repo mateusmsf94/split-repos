@@ -12,6 +12,9 @@ import split.core.Validacoes;
 /**
  * Tabela RETORNO_SUPER_INTELIGENTE. Fato imutável, só insert. Chave: (arranjo, cnpjRaizPspRecDir, nsu).
  * O nsu como chave torna o reprocessamento idempotente.
+ * versao: a versão de cálculo a que o retorno se refere (VersaoTransacao.mudaCalculo). O RSUP não a traz: é a mais
+ * recente cujo informe a PP já tinha respondido em dtHrDisp (REQUISICAO.respondidaEm) e cujos valor e docFiscal
+ * conferem com o vlInf e o docFiscal do retorno.
  * Só PXD e PXA: no Boleto os valores chegam pela Núclea, em VALOR_VIGENTE_BOLETO.
  */
 public record RetornoSuperInteligente(
@@ -22,6 +25,7 @@ public record RetornoSuperInteligente(
         TipoRetorno tipo,
         long valorCentavos,
         IdentificadorTransacao transacao,
+        int versao,
         long valorInformadoCentavos,
         String documentoFiscal,
         Instant disponibilizadoEm,
@@ -36,6 +40,7 @@ public record RetornoSuperInteligente(
             throw new IllegalArgumentException("o PSP só recebe Retorno da PP em PXD e PXA: " + arranjo);
         }
         if (transacao.arranjo() != arranjo) throw new IllegalArgumentException("identificador de outro arranjo");
+        if (versao < 1) throw new IllegalArgumentException("versao começa em 1");
         Validacoes.naoNegativo(valorCentavos, "valor do retorno");
         Validacoes.naoNegativo(nsu, "nsuId");
     }

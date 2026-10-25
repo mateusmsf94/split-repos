@@ -2,6 +2,7 @@ package split.oracle.modelo;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Objects;
 import java.util.Optional;
 
 import split.core.Arranjo;
@@ -17,6 +18,10 @@ import split.core.Validacoes;
  * cnpjPagadorOriginal, dataVencimento e dataHoraLimitePagamento: null = não informado.
  * encerrada: a transação acabou sem pagamento (cancelamento, expiração, baixa do boleto sem pagamento).
  * registradaEm: quando a versão passou a valer. Vai como dtHrIni, dtHrAtu ou dtHrBaixa do informe que ela gera.
+ *
+ * A janela do Super Inteligente (Tempos §5.6) não tem tabela: está aberta depois de uma Iniciada aceita pela PP
+ * enquanto não houver Baixa aceita nem pagamento integral informado (Preliminar ou Segregação) depois dela.
+ * Sai de ITEM_ENVIADO, REQUISICAO e ITEM_REJEITADO.
  */
 public record VersaoTransacao(
         long txKey,
@@ -54,5 +59,19 @@ public record VersaoTransacao(
             throw new IllegalArgumentException(arranjo + " não admite atualização: cancela e cria outra transação");
         }
         return Optional.of(TipoInforme.TRANSACAO_ATUALIZADA);
+    }
+
+    /**
+     * Se esta versão muda o que o Super Inteligente calcula: valor, CBS/IBS Informado ou docFiscal (Operações §4.2.1).
+     * Quando muda, ela vira a versão de cálculo e os retornos das anteriores deixam de valer (ValorVigente.valorDe).
+     * A versão 1 sempre muda. Entrar ou sair do split também: versão sem DECLARACAO_FISCAL não tem retorno.
+     * anterior, declaracaoAnterior e declaracao: null = não existe.
+     */
+    public boolean mudaCalculo(VersaoTransacao anterior, DeclaracaoFiscal declaracaoAnterior, DeclaracaoFiscal declaracao) {
+        if (anterior == null || declaracaoAnterior == null || declaracao == null) return true;
+        return valorOriginalCentavos != anterior.valorOriginalCentavos
+                || declaracao.cbsInformadoCentavos() != declaracaoAnterior.cbsInformadoCentavos()
+                || declaracao.ibsInformadoCentavos() != declaracaoAnterior.ibsInformadoCentavos()
+                || !Objects.equals(declaracao.documentoFiscal(), declaracaoAnterior.documentoFiscal());
     }
 }
