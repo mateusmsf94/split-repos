@@ -19,7 +19,7 @@ public record Pagamento(
         String cnpjRaizPspPagador) {
 
     public Pagamento {
-        if (numPgto < 1) throw new IllegalArgumentException("numPgto começa em 1");
+        Validacoes.numPgto(numPgto);
         Validacoes.naoNegativo(valorPagoCentavos, "vlPago");
         if (cnpjCpfPagadorEfetivo != null) {
             Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfPagadorEfetivo, "cnpjCpfPagEfet");

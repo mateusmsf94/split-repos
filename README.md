@@ -33,7 +33,7 @@ pxe-adapter/        → split-core, split-eventos
 | `IdBoleto`, `IdPixCobranca` (dentro de `IdentificadorTransacao`) | split-core | depois: Super Inteligente |
 | `TipoRetorno`, `TipoInforme`, `TipoOcorrencia`, `MotivoOcorrencia` | split-core | depois |
 | `IdRepasse`, `IdInformeSegregacao`, `IdLote`, `IdOcorrencia`, `Parecer` | split-core | depois: segregação e MOC |
-| `Transacao`, `IndiceIdentificador`, `Pagamento`, `DeclaracaoFiscal`, `RecebedorIndireto`, `CalculoSegregacao` | oracle-service | agora |
+| `Transacao`, `VersaoTransacao`, `IndiceIdentificador`, `Pagamento`, `DeclaracaoFiscal`, `RecebedorIndireto`, `CalculoSegregacao` | oracle-service | agora |
 | `DadosBoleto`, `DadosPagamentoBoleto`, `JanelaSuperInteligenteAberta`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `CursorStream` | oracle-service | depois: Super Inteligente |
 | `TransacaoEmAnalise`, `AnaliseConcluida`, `Ocorrencia`, `RespostaOcorrencia`, `CursorOcorrencias` | oracle-service | depois: MOC |
 | `PendenciaEnvio`, `Requisicao`, `ItemEnviado`, `ItemRejeitado` | oracle-service | depois: envio à PP |
@@ -65,6 +65,13 @@ pxe-adapter/        → split-core, split-eventos
   - oracle-service: `Papel`, `ConfiguracaoArranjo.AncoraRepasse`, `MarcoTemporal.Fase`,
     `AnaliseConcluida.Resultado` (era `ResultadoAnalise` no core: a não aceitação não é comunicada à PP, Operações §10.1);
   - pp-adapter: `RegraCampo.Obrigatoriedade`.
+- **Versões da transação.** `Transacao` ficou só com o que não muda (arranjo, PSP recebedor direto, criação).
+  Recebedor, pagador original, valor original, vencimento e limite de pagamento foram para `VersaoTransacao`, uma linha por alteração.
+  - `DeclaracaoFiscal` usa a mesma chave (txKey, versao) e perdeu `registradaEm`: o horário é o da versão, e vai como `dtHrIni`, `dtHrAtu` ou `dtHrBaixa`.
+  - A Baixa não apaga mais a declaração. A remoção dos campos fiscais é uma versão sem declaração; cancelamento e expiração são uma versão `encerrada`.
+  - `VersaoTransacao.informe(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
+  - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado`, `ItemLote` e `CalculoSegregacao` ganharam `versao`: o que foi enviado é reconstruível mesmo depois de a transação mudar.
+- `Validacoes.numPgto` aplica o limite de 1 a 999.999.999 nos records que são por pagamento.
 
 ## Em aberto nestes arquivos
 

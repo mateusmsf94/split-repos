@@ -21,7 +21,11 @@ public final class FormatoJsonPp {
     private static final Pattern DATA_HORA_TEXTO = Pattern.compile("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}-03:00");
     private static final DateTimeFormatter DATA_HORA = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ssxxx");
 
-    /** "1234.56" → 123456. Rejeita sinal, notação científica e valores acima de um long (≈ R$ 92 quatrilhões). */
+    /**
+     * "1234.56" → 123456. Rejeita sinal, notação científica e valores acima de um long (≈ R$ 92 quatrilhões).
+     * O schema vai até 1e18: o corte abaixo disso é deliberado.
+     * No JSON o decimal é number, não string: o texto aqui é o do próprio número, lido sem passar por double.
+     */
     public static long lerCentavos(String texto) {
         Matcher m = Validacoes.casar(DECIMAL, texto, "valor decimal");
         String casas = m.group(2) == null ? "00" : (m.group(2) + "0").substring(0, 2);
@@ -32,7 +36,7 @@ public final class FormatoJsonPp {
         }
     }
 
-    /** 123456 → "1234.56". */
+    /** 123456 → "1234.56". Vai no JSON como number, sem aspas. */
     public static String formatarCentavos(long centavos) {
         Validacoes.naoNegativo(centavos, "valor");
         return "%d.%02d".formatted(centavos / 100, centavos % 100);

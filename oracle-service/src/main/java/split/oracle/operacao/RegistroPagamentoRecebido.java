@@ -15,6 +15,7 @@ import split.oracle.modelo.MensagemOutbox;
 import split.oracle.modelo.Pagamento;
 import split.oracle.modelo.RecebedorIndireto;
 import split.oracle.modelo.Transacao;
+import split.oracle.modelo.VersaoTransacao;
 
 /**
  * POST /pagamentos-recebidos. Transforma o evento nas linhas que o repositório grava numa transação só.
@@ -29,6 +30,7 @@ public final class RegistroPagamentoRecebido {
     /** Tudo o que entra numa única transação do Oracle. */
     public record Linhas(
             Transacao transacao,
+            VersaoTransacao versao,
             IndiceIdentificador indice,
             Pagamento pagamento,
             DeclaracaoFiscal declaracao,
@@ -38,9 +40,11 @@ public final class RegistroPagamentoRecebido {
 
     /** payloadJson: o próprio evento serializado, que vai para a OUTBOX e depois para o Kafka. */
     public static Linhas projetar(PagamentoRecebido evento, long txKey, String payloadJson) {
-        // No Inteligente não há cobrança prévia: pagador original = pagador efetivo e valor original = valor pago.
-        Transacao transacao = new Transacao(txKey, evento.arranjo(), evento.cnpjRaizPspRecDir(), evento.cnpjRecebedor(),
-                evento.cnpjCpfPagadorEfetivo(), evento.valorPagoCentavos(), null, null, evento.recebidoEm());
+        // No Inteligente não há cobrança prévia: uma versão só, com pagador original = pagador efetivo
+        // e valor original = valor pago.
+        Transacao transacao = new Transacao(txKey, evento.arranjo(), evento.cnpjRaizPspRecDir(), evento.recebidoEm());
+        VersaoTransacao versao = new VersaoTransacao(txKey, 1, evento.cnpjRecebedor(), evento.cnpjCpfPagadorEfetivo(),
+                evento.valorPagoCentavos(), null, null, false, evento.recebidoEm());
 
         IdentificadorTransacao id = evento.identificadorTransacao();
         IndiceIdentificador indice = new IndiceIdentificador(id, txKey);
@@ -50,7 +54,7 @@ public final class RegistroPagamentoRecebido {
                 evento.dataHoraLiquidacao(), e2eId, evento.cnpjCpfPagadorEfetivo(), evento.cnpjRaizPspPagador());
 
         DeclaracaoFiscal declaracao = new DeclaracaoFiscal(txKey, 1, evento.cbsInformadoCentavos(),
-                evento.ibsInformadoCentavos(), evento.documentoFiscal(), evento.recebidoEm());
+                evento.ibsInformadoCentavos(), evento.documentoFiscal());
 
         Optional<RecebedorIndireto> recebedorIndireto = Optional.ofNullable(evento.cnpjRaizPspRecInd())
                 .map(raiz -> new RecebedorIndireto(txKey, raiz));
@@ -62,13 +66,13 @@ public final class RegistroPagamentoRecebido {
         MensagemOutbox outbox = new MensagemOutbox(evento.idEvento(), "PagamentoRecebido", evento.chaveKafka(),
                 payloadJson, evento.recebidoEm());
 
-        return new Linhas(transacao, indice, pagamento, declaracao, recebedorIndireto, calculos, outbox);
+        return new Linhas(transacao, versao, indice, pagamento, declaracao, recebedorIndireto, calculos, outbox);
     }
 
     private static CalculoSegregacao calculo(PagamentoRecebido evento, long txKey, Tributo tributo, long informado) {
         long valor = evento.valorPagoCentavos();
         Segregacao.Resultado resultado = Segregacao.calcular(evento.arranjo(), valor, valor, informado,
                 OptionalLong.empty(), OptionalLong.empty());
-        return CalculoSegregacao.de(txKey, 1, tributo, valor, valor, resultado, 0, evento.recebidoEm());
+        return CalculoSegregacao.de(txKey, 1, 1, tributo, valor, valor, resultado, 0, evento.recebidoEm());
     }
 }

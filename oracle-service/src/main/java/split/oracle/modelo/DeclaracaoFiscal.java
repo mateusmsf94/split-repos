@@ -1,13 +1,12 @@
 package split.oracle.modelo;
 
-import java.time.Instant;
-
 import split.core.Tributo;
 import split.core.Validacoes;
 
 /**
- * Tabela DECLARACAO_FISCAL. Chave: (txKey, versao). A linha existir = a transação tem split.
- * No Super Inteligente: inserir gera Iniciada, nova versão gera Atualizada, remover gera Baixa.
+ * Tabela DECLARACAO_FISCAL. Chave: (txKey, versao), a mesma de VERSAO_TRANSACAO.
+ * A linha existir = naquela versão a transação tem split. O informe que cada versão gera
+ * (Iniciada, Atualizada ou Baixa) sai de VersaoTransacao.informe.
  * documentoFiscal: null = não informado (só possível no Super Inteligente).
  */
 public record DeclaracaoFiscal(
@@ -15,8 +14,7 @@ public record DeclaracaoFiscal(
         int versao,
         long cbsInformadoCentavos,
         long ibsInformadoCentavos,
-        String documentoFiscal,
-        Instant registradaEm) {
+        String documentoFiscal) {
 
     public DeclaracaoFiscal {
         Validacoes.naoNegativo(cbsInformadoCentavos, "vlCbsInf");

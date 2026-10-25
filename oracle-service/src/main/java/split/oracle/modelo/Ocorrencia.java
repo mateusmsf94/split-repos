@@ -35,6 +35,7 @@ public sealed interface Ocorrencia {
 
         public NotificacaoTransacaoEmAnalise {
             if (id.tipo() != TipoOcorrencia.NOTIFICACAO) throw new IllegalArgumentException("idOcor precisa começar com NOT");
+            Validacoes.numPgto(numPgto);
             Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfParteDestinataria, "cnpjCpfDest");
             if (descricao != null) Validacoes.tamanho(descricao, 0, 100, "descOcor");
             if (orgaoResponsavelProcesso != null) Validacoes.tamanho(orgaoResponsavelProcesso, 1, 8, "orgRespProcAdm");
@@ -58,6 +59,7 @@ public sealed interface Ocorrencia {
 
         public SolicitacaoEstorno {
             if (id.tipo() != TipoOcorrencia.SOLICITACAO) throw new IllegalArgumentException("idOcor precisa começar com SOL");
+            Validacoes.numPgto(numPgto);
             Objects.requireNonNull(motivo, "codMotOcor");
             Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfParteDestinataria, "cnpjCpfDest");
             Validacoes.naoNegativo(cbsEstornarCentavos, "vlCbsEst");

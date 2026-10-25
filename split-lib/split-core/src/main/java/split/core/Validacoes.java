@@ -70,6 +70,11 @@ public final class Validacoes {
         faixa(indice, 1, MAX_ITENS_POR_REQUISICAO, "index");
     }
 
+    /** numPgto: de 1 a 999.999.999 (numérico de até 9 dígitos). */
+    public static void numPgto(int numPgto) {
+        faixa(numPgto, 1, 999_999_999, "numPgto");
+    }
+
     public static LocalDate lerData(String aaaammdd) {
         try {
             return LocalDate.parse(aaaammdd, AAAAMMDD);
