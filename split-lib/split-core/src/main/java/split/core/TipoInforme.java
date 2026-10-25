@@ -8,23 +8,30 @@ public enum TipoInforme {
     /** numPgto dos informes da transação, que não têm pagamento. Nos demais, numPgto vai de 1 a 999.999.999. */
     public static final int SEM_PAGAMENTO = 0;
 
-    /** Iniciada, Atualizada e Baixa: falam da transação, não de um pagamento. */
-    public boolean daTransacao() {
-        return this == TRANSACAO_INICIADA || this == TRANSACAO_ATUALIZADA || this == BAIXA_EXCETO_PAGAMENTO;
+    /**
+     * Do que o informe fala. TRANSACAO: Iniciada, Atualizada e Baixa, que não têm pagamento.
+     * PAGAMENTO: um pagamento da transação. REMESSA: início e finalização, que não são de uma transação.
+     */
+    public enum Escopo { TRANSACAO, PAGAMENTO, REMESSA }
+
+    public Escopo escopo() {
+        return switch (this) {
+            case TRANSACAO_INICIADA, TRANSACAO_ATUALIZADA, BAIXA_EXCETO_PAGAMENTO -> Escopo.TRANSACAO;
+            case PRELIMINAR_PAGAMENTO, SEGREGACAO_LOTE, MOC_NOTIFICACAO, MOC_SOLICITACAO -> Escopo.PAGAMENTO;
+            case SEGREGACAO_INICIO, SEGREGACAO_FINALIZACAO -> Escopo.REMESSA;
+        };
     }
 
-    /** Início e finalização da remessa: não são de uma transação. */
-    public boolean daRemessa() {
-        return this == SEGREGACAO_INICIO || this == SEGREGACAO_FINALIZACAO;
-    }
-
-    /** numPgto de um item deste informe: SEM_PAGAMENTO nos da transação, de 1 a 999.999.999 nos demais. */
+    /** numPgto de um item deste informe: SEM_PAGAMENTO nos da transação, de 1 a 999.999.999 nos de pagamento. */
     public void exigirNumPgto(int numPgto) {
-        if (daRemessa()) throw new IllegalArgumentException(this + " é da remessa, não de uma transação");
-        if (!daTransacao()) {
-            Validacoes.numPgto(numPgto);
-        } else if (numPgto != SEM_PAGAMENTO) {
-            throw new IllegalArgumentException(this + " não tem pagamento: numPgto = " + SEM_PAGAMENTO);
+        switch (escopo()) {
+            case TRANSACAO -> {
+                if (numPgto != SEM_PAGAMENTO) {
+                    throw new IllegalArgumentException(this + " não tem pagamento: numPgto = " + SEM_PAGAMENTO);
+                }
+            }
+            case PAGAMENTO -> Validacoes.numPgto(numPgto);
+            case REMESSA -> throw new IllegalArgumentException(this + " é da remessa, não de uma transação");
         }
     }
 }

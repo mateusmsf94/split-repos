@@ -97,7 +97,7 @@ pxe-adapter/        → split-core, split-eventos
   - `EstornoDevolvido`: o PSP repassou à parte prejudicada pelo backoffice. Meta 24h, ANS 2 dias úteis, fora do IGA (Tempos §8.1).
   - Recebido sem devolvido = valor da parte prejudicada parado no PSP.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
-  `TipoInforme.exigirNumPgto(numPgto)` confere isso em `PendenciaEnvio`; `daTransacao()` e `daRemessa()` separam os informes.
+  `TipoInforme.exigirNumPgto(numPgto)` confere isso em `PendenciaEnvio`; `escopo()` separa os informes em transação, pagamento e remessa.
 - **Tipos de valor.** Os records de tabela e os ids do core usam `Cnpj`, `Cpf`, `CnpjOuCpf`, `CnpjRaiz`, `Ispb`, `Nsu` e `Centavos`
   no lugar de `String` e `long` validados. Trocar ISPB por raiz de CNPJ, ou NSU por valor, deixa de compilar.
   - Os campos perderam o sufixo `Centavos`: `valorPagoCentavos` virou `valorPago`, e assim por diante.
@@ -119,6 +119,10 @@ pxe-adapter/        → split-core, split-eventos
   - `Segregacao` e `OrigemReferencia` foram para `oracle-service/calculo`: só o oracle-service calcula.
   - `Segregacao.inteligente` saiu: devolvia o próprio informado. Os adapters passam o informado como segregado, e o evento confere.
   - A versão em colunas de `Segregacao.superInteligente` saiu: ninguém a chamava.
+
+- **Switch exaustivo.** Os fatos dos enums (`Arranjo`, `Tributo`, `TipoInforme`) listam todas as constantes num `switch` sem `default`:
+  uma constante nova não compila até alguém decidir cada fato dela. `TipoInforme.escopo()` (transação, pagamento ou remessa)
+  substitui `daTransacao()` e `daRemessa()`. Os adapters desmontam o `Avaliacao` no `case` (`Invalido(var motivo)`).
 
 ## Em aberto nestes arquivos
 

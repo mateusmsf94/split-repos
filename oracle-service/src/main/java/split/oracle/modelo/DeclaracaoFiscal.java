@@ -33,6 +33,9 @@ public record DeclaracaoFiscal(
     }
 
     public Centavos informado(Tributo tributo) {
-        return tributo == Tributo.CBS ? cbsInformado : ibsInformado;
+        return switch (tributo) {
+            case CBS -> cbsInformado;
+            case IBS -> ibsInformado;
+        };
     }
 }

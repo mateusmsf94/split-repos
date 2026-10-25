@@ -28,7 +28,14 @@ public record CodigoRsup(Arranjo arranjo, Tributo tributo, TipoRetorno tipo) {
     }
 
     public String texto() {
-        int n = (tributo == Tributo.CBS ? 1 : 3) + (tipo == TipoRetorno.CORRIGIDO ? 0 : 1);
-        return "RSUP" + arranjo.digitoRsup() + "0" + n;
+        int base = switch (tributo) {
+            case CBS -> 1;
+            case IBS -> 3;
+        };
+        int deslocamento = switch (tipo) {
+            case CORRIGIDO -> 0;
+            case EM_ABERTO -> 1;
+        };
+        return "RSUP" + arranjo.digitoRsup() + "0" + (base + deslocamento);
     }
 }

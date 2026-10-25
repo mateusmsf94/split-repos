@@ -55,7 +55,7 @@ public final class RegistroPagamentoRecebido {
         IdentificadorTransacao id = evento.identificadorTransacao();
         IndiceIdentificador indice = new IndiceIdentificador(id, txKey);
 
-        String e2eId = id instanceof IdentificadorTransacao.IdPixEstatico pix ? pix.e2eId() : null;
+        String e2eId = id instanceof IdentificadorTransacao.IdPixEstatico(var e2e) ? e2e : null;
         CnpjRaiz pspPagador = evento.cnpjRaizPspPagador() == null ? null : new CnpjRaiz(evento.cnpjRaizPspPagador());
         Pagamento pagamento = new Pagamento(txKey, 1, valorPago, evento.dataHoraPagamento(),
                 evento.dataHoraLiquidacao(), e2eId, pagador, pspPagador);

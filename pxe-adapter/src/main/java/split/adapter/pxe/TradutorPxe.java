@@ -63,9 +63,9 @@ public final class TradutorPxe {
                 dados.valorCentavos());
 
         return switch (avaliacao) {
-            case Avaliacao.SemSplit semSplit -> Optional.empty();
-            case Avaliacao.Invalido invalido -> throw new TriagemInteligente.CamposFiscaisInvalidos(invalido.motivo());
-            case Avaliacao.ComSplit comSplit -> Optional.of(new PagamentoRecebido(
+            case Avaliacao.SemSplit _ -> Optional.empty();
+            case Avaliacao.Invalido(var motivo) -> throw new TriagemInteligente.CamposFiscaisInvalidos(motivo);
+            case Avaliacao.ComSplit _ -> Optional.of(new PagamentoRecebido(
                     idEvento,
                     Arranjo.PXE,
                     dados.e2eId(),
