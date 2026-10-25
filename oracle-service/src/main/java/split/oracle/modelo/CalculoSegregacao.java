@@ -11,6 +11,7 @@ import split.core.Validacoes;
  * Tabela CALCULO_SEGREGACAO. Foto imutável do cálculo, uma linha por tributo. Chave: (txKey, numPgto, tributo).
  * Guarda as entradas usadas, a versão da transação e o NSU-base: é a prova de que o PSP usou o que tinha
  * processado a tempo da liquidação (Operações §7.2).
+ * Não existe no Boleto: lá o segregado vem calculado pela Núclea, em DADOS_PAGAMENTO_BOLETO.
  */
 public record CalculoSegregacao(
         long txKey,

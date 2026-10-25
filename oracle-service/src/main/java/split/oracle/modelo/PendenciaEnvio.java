@@ -5,7 +5,8 @@ import java.time.Instant;
 import split.core.TipoInforme;
 
 /**
- * Tabela PENDENCIA_ENVIO: obrigação de envio à PP (Preliminar, Segregação, MOC).
+ * Tabela PENDENCIA_ENVIO: obrigação de envio à PP (Preliminar, Segregação, MOC). No Boleto, só MOC:
+ * os demais informes são da Núclea.
  * A linha some quando o item é aceito: reenviar item aceito vira erro e pesa no IGA.
  * versao: a de VERSAO_TRANSACAO que gerou a obrigação. O item sai com os dados dela.
  */

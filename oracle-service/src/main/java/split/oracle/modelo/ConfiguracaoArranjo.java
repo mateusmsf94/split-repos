@@ -9,6 +9,7 @@ import split.core.Arranjo;
 /**
  * Tabela CONFIGURACAO_ARRANJO: cortes do Informe de Segregação (Tempos §5.2) e prazos do repasse (Tempos §6.2).
  * É dado, não constante: mudar um corte não deve exigir redeploy.
+ * No Boleto os cortes são os da Núclea, que envia o informe; ao PSP valem os prazos do repasse.
  */
 public record ConfiguracaoArranjo(
         Arranjo arranjo,

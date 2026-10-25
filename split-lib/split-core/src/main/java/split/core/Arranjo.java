@@ -25,6 +25,12 @@ public enum Arranjo {
     /** Modelo Super Inteligente: há janela entre iniciação e pagamento. */
     public boolean superInteligente() { return iniciador == Iniciador.RECEBEDOR; }
 
+    /**
+     * No Boleto, quem envia os informes à PP, consome o Retorno e calcula o segregado é a Núclea (Operações §4.1 e §5.4).
+     * Ao PSP ficam o registro do boleto na Núclea, o Repasse Financeiro e o MOC (Operações §10.3).
+     */
+    public boolean viaNuclea() { return this == BOL; }
+
     /** Informe de Transação Atualizada só existe em BOL e PXD (PXA cancela e recria). */
     public boolean admiteAtualizacao() { return this == BOL || this == PXD; }
 

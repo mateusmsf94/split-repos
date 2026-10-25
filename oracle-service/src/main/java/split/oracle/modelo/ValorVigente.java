@@ -8,6 +8,7 @@ import split.core.Tributo;
 /**
  * Tabela VALOR_VIGENTE, derivada de RETORNO_SUPER_INTELIGENTE. Chave: (txKey, tributo, tipo).
  * A linha existir = há CORRIGIDO e/ou EM_ABERTO para aquele tributo.
+ * Só PXD e PXA. No Boleto os valores vêm da Núclea, em VALOR_VIGENTE_BOLETO.
  */
 public record ValorVigente(long txKey, Tributo tributo, TipoRetorno tipo, long valorCentavos, long nsu) {
 

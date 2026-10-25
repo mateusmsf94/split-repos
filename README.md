@@ -34,10 +34,10 @@ pxe-adapter/        → split-core, split-eventos
 | `TipoRetorno`, `TipoInforme`, `TipoOcorrencia`, `MotivoOcorrencia` | split-core | depois |
 | `IdRepasse`, `IdInformeSegregacao`, `IdLote`, `IdOcorrencia`, `Parecer` | split-core | depois: segregação e MOC |
 | `Transacao`, `VersaoTransacao`, `IndiceIdentificador`, `Pagamento`, `DeclaracaoFiscal`, `RecebedorIndireto`, `CalculoSegregacao` | oracle-service | agora |
-| `DadosBoleto`, `DadosPagamentoBoleto`, `JanelaSuperInteligenteAberta`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `CursorStream` | oracle-service | depois: Super Inteligente |
+| `DadosBoleto`, `DadosPagamentoBoleto`, `JanelaSuperInteligenteAberta`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `ValorVigenteBoleto`, `CursorStream` | oracle-service | depois: Super Inteligente |
 | `TransacaoEmAnalise`, `AnaliseConcluida`, `Ocorrencia`, `RespostaOcorrencia`, `CursorOcorrencias` | oracle-service | depois: MOC |
 | `PendenciaEnvio`, `Requisicao`, `ItemEnviado`, `ItemRejeitado` | oracle-service | depois: envio à PP |
-| `RemessaIniciada`, `LoteEnviado`, `ItemLote`, `RemessaFinalizada`, `RepasseExecutado`, `MarcoTemporal` | oracle-service | depois: segregação e repasse |
+| `RemessaIniciada`, `LoteEnviado`, `ItemLote`, `RemessaFinalizada`, `RepasseExecutado`, `ItemRepasseBoleto`, `MarcoTemporal` | oracle-service | depois: segregação e repasse |
 | `Participante`, `PapelNoArranjo`, `ConfiguracaoArranjo`, `DiaUtil` | oracle-service | depois: segregação |
 | Decimal, data e hora `-03:00` e nsu de `Formatos` | pp-adapter (`FormatoJsonPp`) | depois: envio à PP |
 | `CodigoRsup`, `RegraCampo` | pp-adapter | depois |
@@ -72,6 +72,12 @@ pxe-adapter/        → split-core, split-eventos
   - `VersaoTransacao.informe(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
   - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado`, `ItemLote` e `CalculoSegregacao` ganharam `versao`: o que foi enviado é reconstruível mesmo depois de a transação mudar.
 - `Validacoes.numPgto` aplica o limite de 1 a 999.999.999 nos records que são por pagamento.
+- **Boleto visto do PSP.** O sistema é só PSP. No Boleto, a Núclea envia os informes, consome o Retorno e calcula o segregado
+  (Operações §4.1 e §5.4); ao PSP ficam o registro do boleto na Núclea, o Repasse Financeiro e o MOC. `Arranjo.viaNuclea()` diz isso.
+  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente` e `RemessaIniciada`. `VersaoTransacao.informe` devolve vazio: a versão vai à Núclea.
+  - `DadosPagamentoBoleto` ganhou o CBS/IBS Segregado que a Núclea calculou e manda na baixa. No Boleto não há `CalculoSegregacao`.
+  - `ItemRepasseBoleto` diz em qual repasse entra cada pagamento de Boleto, papel que nos outros arranjos é da remessa do próprio PSP.
+  - `ValorVigenteBoleto` guarda só os valores vigentes que a Núclea manda, sem NSU: o PSP não lê o stream do Boleto nem calcula com eles.
 
 ## Em aberto nestes arquivos
 
@@ -81,6 +87,9 @@ pxe-adapter/        → split-core, split-eventos
   - `cnpjIniciador` (os três) e `formaIniciacao` (PXE) tiram do split a iniciação por ITP do Open Finance, que está fora da Fase 1 em qualquer arranjo (Operações §1.2).
     No Pix o manual dá os dois sinais; na TED e no TEF falta confirmar de onde vem o iniciador. Se não vier, fica null e nada muda.
   - O pxe-adapter só recebe Pix Estático (DICT, MANU, QRES, APES). QRDN, APDN ou AUTO chegando nele é erro de roteamento e lança exceção.
+- **Interface com a Núclea no Boleto.** Os manuais da PP não a descrevem. Falta confirmar, porque decide quanto o PSP repassa:
+  - como o PSP sabe em qual Informe de Segregação a Núclea incluiu cada pagamento (`ItemRepasseBoleto`);
+  - como o PSP avisa a Núclea de um Impeditivo Não Contratual, para ela tirar o pagamento do informe.
 - **Ainda não existem:**
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;

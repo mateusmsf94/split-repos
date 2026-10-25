@@ -12,6 +12,7 @@ import split.core.Validacoes;
 /**
  * Tabela RETORNO_SUPER_INTELIGENTE. Fato imutável, só insert. Chave: (arranjo, cnpjRaizPspRecDir, nsu).
  * O nsu como chave torna o reprocessamento idempotente.
+ * Só PXD e PXA: no Boleto os valores chegam pela Núclea, em VALOR_VIGENTE_BOLETO.
  */
 public record RetornoSuperInteligente(
         Arranjo arranjo,
@@ -31,7 +32,9 @@ public record RetornoSuperInteligente(
     public static final Duration RETENCAO_RETROATIVA = Duration.ofHours(72);
 
     public RetornoSuperInteligente {
-        if (!arranjo.superInteligente()) throw new IllegalArgumentException("arranjo sem Super Inteligente: " + arranjo);
+        if (!arranjo.superInteligente() || arranjo.viaNuclea()) {
+            throw new IllegalArgumentException("o PSP só recebe Retorno da PP em PXD e PXA: " + arranjo);
+        }
         if (transacao.arranjo() != arranjo) throw new IllegalArgumentException("identificador de outro arranjo");
         Validacoes.naoNegativo(valorCentavos, "valor do retorno");
         Validacoes.naoNegativo(nsu, "nsuId");

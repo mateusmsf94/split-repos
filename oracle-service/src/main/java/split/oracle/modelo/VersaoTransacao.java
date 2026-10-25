@@ -37,13 +37,14 @@ public record VersaoTransacao(
     }
 
     /**
-     * Informe que esta versão gera no Super Inteligente (Operações §4.2.1). Vazio = nada a informar.
+     * Informe que esta versão gera no Super Inteligente (Operações §4.2.1). Vazio = o PSP não informa a PP.
+     * No Boleto é sempre vazio: a versão vai à Núclea no registro, alteração ou baixa do boleto, e ela informa a PP.
      * anteriorComSplit: a versão anterior tem DECLARACAO_FISCAL e não está encerrada (false na versão 1).
      * comSplit: esta versão tem DECLARACAO_FISCAL.
      */
     public Optional<TipoInforme> informe(Arranjo arranjo, boolean anteriorComSplit, boolean comSplit) {
         if (versao == 1 && anteriorComSplit) throw new IllegalArgumentException("a versão 1 não tem anterior");
-        if (!arranjo.superInteligente()) return Optional.empty();
+        if (!arranjo.superInteligente() || arranjo.viaNuclea()) return Optional.empty();
 
         boolean temSplit = comSplit && !encerrada;
         if (!anteriorComSplit) return temSplit ? Optional.of(TipoInforme.TRANSACAO_INICIADA) : Optional.empty();

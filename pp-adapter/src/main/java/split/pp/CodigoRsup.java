@@ -15,6 +15,7 @@ public record CodigoRsup(Arranjo arranjo, Tributo tributo, TipoRetorno tipo) {
 
     public CodigoRsup {
         if (!arranjo.superInteligente()) throw new IllegalArgumentException("arranjo sem RSUP: " + arranjo);
+        if (arranjo.viaNuclea()) throw new IllegalArgumentException("o RSUP do Boleto é da Núclea, não chega ao PSP pela PP");
     }
 
     public static CodigoRsup ler(String codMsg) {
