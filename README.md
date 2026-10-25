@@ -35,7 +35,7 @@ pxe-adapter/        → split-core, split-eventos
 | `IdRepasse`, `IdInformeSegregacao`, `IdLote`, `IdOcorrencia`, `Parecer` | split-core | depois: segregação e MOC |
 | `Transacao`, `VersaoTransacao`, `IndiceIdentificador`, `Pagamento`, `DeclaracaoFiscal`, `RecebedorIndireto`, `CalculoSegregacao` | oracle-service | agora |
 | `DadosBoleto`, `DadosPagamentoBoleto`, `VinculoBoletoPix`, `RetornoSuperInteligente`, `ValorVigente`, `ValorVigenteBoleto`, `CursorStream` | oracle-service | depois: Super Inteligente |
-| `TransacaoEmAnalise`, `AnaliseConcluida`, `Ocorrencia`, `RespostaOcorrencia`, `CursorOcorrencias` | oracle-service | depois: MOC |
+| `TransacaoEmAnalise`, `AnaliseConcluida`, `Ocorrencia`, `RespostaOcorrencia`, `EstornoRecebido`, `EstornoDevolvido`, `CursorOcorrencias` | oracle-service | depois: MOC |
 | `PendenciaEnvio`, `Requisicao`, `ItemEnviado`, `ItemRejeitado` | oracle-service | depois: envio à PP |
 | `RemessaIniciada`, `LoteEnviado`, `ItemLote`, `RemessaFinalizada`, `RepasseExecutado`, `ItemRepasseBoleto`, `MarcoTemporal` | oracle-service | depois: segregação e repasse |
 | `Participante`, `PapelNoArranjo`, `ConfiguracaoArranjo`, `DiaUtil` | oracle-service | depois: segregação |
@@ -90,6 +90,11 @@ pxe-adapter/        → split-core, split-eventos
 - **Impeditivo Não Contratual só com fatos.** `TransacaoEmAnalise` é a retenção, imutável; em análise é quem ainda não tem `AnaliseConcluida`.
   - Saiu `notificacao`: a notificação enviada é a `Ocorrencia` do mesmo (txKey, numPgto).
   - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. `prazoNotificacao` recebe o `Pagamento`.
+- **Estorno até o fim (Operações §10.4).** Depois da resposta, mais dois fatos por (idOcor, tributo):
+  - `EstornoRecebido`: o valor que a RFB (CBS, via TES) ou o CGIBS (IBS, via STR) devolveu. O crédito traz o `idAprovEst`
+    da resposta como NumCtrlTESOr/NumCtrlSTROr, e `confere` compara com o `vlTribEst` aprovado.
+  - `EstornoDevolvido`: o PSP repassou à parte prejudicada pelo backoffice. Meta 24h, ANS 2 dias úteis, fora do IGA (Tempos §8.1).
+  - Recebido sem devolvido = valor da parte prejudicada parado no PSP.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
   `Validacoes.numPgto(informe, numPgto)` confere isso em `PendenciaEnvio`; `TipoInforme.daTransacao()` e `daRemessa()` separam os informes.
 
