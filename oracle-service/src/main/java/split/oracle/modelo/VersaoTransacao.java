@@ -18,6 +18,7 @@ import split.core.Validacoes;
  * cnpjPagadorOriginal, dataVencimento e dataHoraLimitePagamento: null = não informado.
  * encerrada: a transação acabou sem pagamento (cancelamento, expiração, baixa do boleto sem pagamento).
  * registradaEm: quando a versão passou a valer. Vai como dtHrIni, dtHrAtu ou dtHrBaixa do informe que ela gera.
+ * Na versão 1 é a criação da transação, de onde conta o marco A do Super Inteligente (Tempos §5.6).
  *
  * A janela do Super Inteligente (Tempos §5.6) não tem tabela: está aberta depois de uma Iniciada aceita pela PP
  * enquanto não houver Baixa aceita nem pagamento integral informado (Preliminar ou Segregação) depois dela.

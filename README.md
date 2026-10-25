@@ -65,7 +65,7 @@ pxe-adapter/        → split-core, split-eventos
   - oracle-service: `Papel`, `ConfiguracaoArranjo.AncoraRepasse`, `MarcoTemporal.Fase`,
     `AnaliseConcluida.Resultado` (era `ResultadoAnalise` no core: a não aceitação não é comunicada à PP, Operações §10.1);
   - pp-adapter: `RegraCampo.Obrigatoriedade`.
-- **Versões da transação.** `Transacao` ficou só com o que não muda (arranjo, PSP recebedor direto, criação).
+- **Versões da transação.** `Transacao` ficou só com o que não muda (arranjo, PSP recebedor direto). A criação é o `registradaEm` da versão 1.
   Recebedor, pagador original, valor original, vencimento e limite de pagamento foram para `VersaoTransacao`, uma linha por alteração.
   - `DeclaracaoFiscal` usa a mesma chave (txKey, versao) e perdeu `registradaEm`: o horário é o da versão, e vai como `dtHrIni`, `dtHrAtu` ou `dtHrBaixa`.
   - A Baixa não apaga mais a declaração. A remoção dos campos fiscais é uma versão sem declaração; cancelamento e expiração são uma versão `encerrada`.
@@ -87,6 +87,9 @@ pxe-adapter/        → split-core, split-eventos
   - `ItemLote` usa a chave de `ItemEnviado`, (jti, indice), e ficou só com os valores; pagamento e versão vêm de `ItemEnviado`.
   - A finalização soma os itens da tentativa vigente de cada lote: a última com 200 ou 201.
 - **`JanelaSuperInteligenteAberta` saiu.** A janela é derivada dos informes aceitos (Iniciada, Baixa, pagamento integral); está descrita em `VersaoTransacao`.
+- **Impeditivo Não Contratual só com fatos.** `TransacaoEmAnalise` é a retenção, imutável; em análise é quem ainda não tem `AnaliseConcluida`.
+  - Saiu `notificacao`: a notificação enviada é a `Ocorrencia` do mesmo (txKey, numPgto).
+  - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. `prazoNotificacao` recebe o `Pagamento`.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
   `Validacoes.numPgto(informe, numPgto)` confere isso em `PendenciaEnvio`; `TipoInforme.daTransacao()` e `daRemessa()` separam os informes.
 

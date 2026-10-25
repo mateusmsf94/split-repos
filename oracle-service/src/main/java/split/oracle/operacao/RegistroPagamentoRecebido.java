@@ -42,7 +42,7 @@ public final class RegistroPagamentoRecebido {
     public static Linhas projetar(PagamentoRecebido evento, long txKey, String payloadJson) {
         // No Inteligente não há cobrança prévia: uma versão só, com pagador original = pagador efetivo
         // e valor original = valor pago.
-        Transacao transacao = new Transacao(txKey, evento.arranjo(), evento.cnpjRaizPspRecDir(), evento.recebidoEm());
+        Transacao transacao = new Transacao(txKey, evento.arranjo(), evento.cnpjRaizPspRecDir());
         VersaoTransacao versao = new VersaoTransacao(txKey, 1, evento.cnpjRecebedor(), evento.cnpjCpfPagadorEfetivo(),
                 evento.valorPagoCentavos(), null, null, false, evento.recebidoEm());
 
