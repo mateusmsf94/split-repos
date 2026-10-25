@@ -1,7 +1,10 @@
-package split.core;
+package split.oracle.calculo;
 
 import java.math.BigInteger;
 import java.util.OptionalLong;
+
+import split.core.Arranjo;
+import split.core.Validacoes;
 
 /** O cálculo do CBS/IBS Segregado (Operações cap. 5). Só primitivos, sem dependência de banco. */
 public final class Segregacao {
@@ -32,7 +35,8 @@ public final class Segregacao {
             if (corrigido.isPresent() || emAberto.isPresent()) {
                 throw new IllegalArgumentException(arranjo + " não recebe Retorno Super Inteligente");
             }
-            return new Resultado(informado, OrigemReferencia.INFORMADO, SEM_TETO, inteligente(informado));
+            // Arranjos do Pagador: segregado = informado, sem proporcionalidade (Operações §5.1).
+            return new Resultado(informado, OrigemReferencia.INFORMADO, SEM_TETO, informado);
         }
 
         OrigemReferencia origem = corrigido.isPresent() ? OrigemReferencia.CORRIGIDO : OrigemReferencia.INFORMADO;
@@ -47,21 +51,9 @@ public final class Segregacao {
         return Math.min(Math.min(proporcional, c), a);
     }
 
-    /** Arranjos do Pagador: segregado = informado, sem proporcionalidade (Operações §5.1). */
-    public static long inteligente(long informado) {
-        return informado;
-    }
-
     /** CBS/IBS Aplicado, exibido ao Pagador: mesma fórmula, ignorando EM ABERTO (Operações §2.3). */
     public static long aplicado(long vp, long vt, long c) {
         return superInteligente(vp, vt, c, SEM_TETO);
-    }
-
-    /** Versão colunar (struct-of-arrays) para lotes e reprocessamentos. */
-    public static void superInteligente(long[] vp, long[] vt, long[] c, long[] a, long[] saida) {
-        for (int i = 0; i < saida.length; i++) {
-            saida[i] = superInteligente(vp[i], vt[i], c[i], a[i]);
-        }
     }
 
     /** ⌊x × y / d⌋ para x, y ≥ 0 e x < d, sem estouro. */

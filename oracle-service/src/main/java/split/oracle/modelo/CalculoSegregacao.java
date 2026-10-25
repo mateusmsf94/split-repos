@@ -4,10 +4,10 @@ import java.time.Instant;
 
 import split.core.Centavos;
 import split.core.Nsu;
-import split.core.OrigemReferencia;
-import split.core.Segregacao;
 import split.core.Tributo;
 import split.core.Validacoes;
+import split.oracle.calculo.OrigemReferencia;
+import split.oracle.calculo.Segregacao;
 
 /**
  * Tabela CALCULO_SEGREGACAO. Foto imutável do cálculo, uma linha por tributo. Chave: (txKey, numPgto, tributo).
@@ -39,7 +39,7 @@ public record CalculoSegregacao(
     }
 
     /**
-     * Ponte do split-core, que calcula em long, para a linha.
+     * Ponte da Segregacao, que calcula em long, para a linha.
      * versao: a de VERSAO_TRANSACAO vigente na liquidação. nsuBase: maior NSU já processado no cálculo (null no Inteligente).
      */
     public static CalculoSegregacao de(long txKey, int numPgto, int versao, Tributo tributo, Centavos valorPago,

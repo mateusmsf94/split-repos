@@ -3,7 +3,6 @@ package split.oracle.modelo;
 import java.util.Objects;
 
 import split.core.Centavos;
-import split.core.EntradaCalculo;
 import split.core.Tributo;
 import split.core.Validacoes;
 
@@ -35,13 +34,5 @@ public record DeclaracaoFiscal(
 
     public Centavos informado(Tributo tributo) {
         return tributo == Tributo.CBS ? cbsInformado : ibsInformado;
-    }
-
-    /**
-     * A entrada de VigenciaRetorno.mudaCalculo. valorOriginal: o da VersaoTransacao de mesma chave.
-     * Versão sem declaração não tem entrada: passa null.
-     */
-    public EntradaCalculo entradaCalculo(Centavos valorOriginal) {
-        return new EntradaCalculo(valorOriginal, cbsInformado, ibsInformado, documentoFiscal);
     }
 }

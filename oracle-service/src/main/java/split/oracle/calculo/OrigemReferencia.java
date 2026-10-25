@@ -1,4 +1,4 @@
-package split.core;
+package split.oracle.calculo;
 
 /** De onde veio o valor de referência C da fórmula de segregação. */
 public enum OrigemReferencia { INFORMADO, CORRIGIDO }

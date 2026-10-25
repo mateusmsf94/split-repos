@@ -19,6 +19,7 @@ pxe-adapter/        → split-core, split-eventos
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
 - O **split-service** ainda não recebe nada: as regras de negócio dele entram numa próxima etapa.
+- A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
 
@@ -26,9 +27,9 @@ pxe-adapter/        → split-core, split-eventos
 
 | Tipos | Foi para | Etapa |
 |---|---|---|
-| `Arranjo`, `Iniciador`, `Tributo`, `OrgaoResponsavel`, `OrigemReferencia` | split-core | agora |
+| `Arranjo`, `Iniciador`, `Tributo`, `OrgaoResponsavel` | split-core | agora |
 | `IdentificadorTransacao` com `IdPixEstatico`, `IdTed`, `IdTef` | split-core | agora |
-| `Segregacao` | split-core | agora |
+| `Segregacao`, `OrigemReferencia` | oracle-service (`calculo`) | agora |
 | Padrões e validações de `Formatos` | split-core (`Validacoes`; CNPJ, CPF, raiz, ISPB e NSU nos tipos `Cnpj`, `Cpf`, `CnpjOuCpf`, `CnpjRaiz`, `Ispb`, `Nsu`) | agora |
 | `IdBoleto`, `IdPixCobranca` (dentro de `IdentificadorTransacao`) | split-core | depois: Super Inteligente |
 | `TipoRetorno`, `TipoInforme`, `TipoOcorrencia`, `MotivoOcorrencia` | split-core | depois |
@@ -55,9 +56,9 @@ pxe-adapter/        → split-core, split-eventos
 ## O que mudou em relação ao arquivo único
 
 - `Formatos` virou dois: `Validacoes` (core) e `FormatoJsonPp` (pp-adapter).
-- `CalculoSegregacao.calcular(...)` virou `Segregacao.calcular(...)` no core:
+- `CalculoSegregacao.calcular(...)` virou `Segregacao.calcular(...)`, em `oracle-service/calculo`:
   - recebe `OptionalLong` para "não existe retorno", que é diferente de zero;
-  - no oracle-service ficaram `CalculoSegregacao.de(...)` e `ValoresVigentes.valorDe(...)`, que converte linha ausente em vazio.
+  - no oracle-service ficaram `CalculoSegregacao.de(...)` e `VigenciaRetorno.valorDe(...)`, que converte linha ausente em vazio.
 - `RetornoSuperInteligente.codigo()` saiu: `CodigoRsup` agora é do pp-adapter.
 - `Requisicao` ganhou `idComando`, para o pp-adapter não reenviar o mesmo comando com `jti` novo.
 - `ConfiguracaoArranjo.PADRAO` virou `CARGA_INICIAL`, porque é a carga inicial da tabela.
@@ -80,7 +81,7 @@ pxe-adapter/        → split-core, split-eventos
   - `ValorVigenteBoleto` guarda só os valores vigentes que a Núclea manda, sem NSU: o PSP não lê o stream do Boleto nem calcula com eles.
 - **Retorno por versão de cálculo.** Uma Atualizada que muda valor, CBS/IBS Informado ou docFiscal invalida os retornos anteriores (Operações §4.2.1).
   - `VigenciaRetorno.mudaCalculo(...)` diz se a versão muda o cálculo; a última que mudou é a versão de cálculo.
-  - `RetornoSuperInteligente` e `ValorVigente` ganharam `versao`. `ValoresVigentes.valorDe` recebe a versão de cálculo e devolve vazio para a linha de outra versão.
+  - `RetornoSuperInteligente` e `ValorVigente` ganharam `versao`. `VigenciaRetorno.valorDe` recebe a versão de cálculo e devolve vazio para a linha de outra versão.
   - `Requisicao` ganhou `respondidaEm`: o RSUP não traz versão, e é a resposta da PP ao informe que separa os retornos de cada versão.
 - **Lote por tentativa.** O reenvio de um idLote substitui o lote na PP, mas não apaga a tentativa anterior aqui.
   - `LoteEnviado` virou (jti, idLote): horário, status e resourceId já estavam em `Requisicao`.
@@ -101,22 +102,23 @@ pxe-adapter/        → split-core, split-eventos
   no lugar de `String` e `long` validados. Trocar ISPB por raiz de CNPJ, ou NSU por valor, deixa de compilar.
   - Os campos perderam o sufixo `Centavos`: `valorPagoCentavos` virou `valorPago`, e assim por diante.
   - Cada tipo tem o `FORMATO` dentro; `Validacoes` ficou com o que é genérico (tamanho, faixa, data, código de barras).
-  - Ficam em texto e long: `PagamentoRecebido`, que é o JSON plano; `Segregacao`, que calcula em long (e em colunas);
+  - Ficam em texto e long: `PagamentoRecebido`, que é o JSON plano; `Segregacao`, que calcula em long;
     e os `Dados...` dos adapters, que são a entrada crua do parser. A conversão acontece em `RegistroPagamentoRecebido`.
   - `CalculoSegregacao`: `tetoEmAberto` null = sem EM ABERTO (no lugar de `SEM_TETO`) e `nsuBase` null no Inteligente (no lugar de 0).
   - `FormatoJsonPp.lerCentavos` devolve `Centavos`; o nsuId se lê com `Nsu.ler`.
 - `RegrasInteligente` virou `TriagemInteligente`, que diz o que ela faz.
 - **Regras fora dos records.** Um record de tabela fica com as invariantes do construtor, com o que deriva da própria linha
   (`tinhaEmAberto`, `cabeEm`, `consumidoNoPrazo`, `tokenValidoEm`) e com os `ler`, `texto` e `de`.
-  As regras ficam em classes `final` só com funções `static`, porque o Java não tem função solta:
-  - regra do manual que só usa valores vai para o split-core, como a `Segregacao`, e qualquer serviço pode usar:
-    - `InformeTransacao.daVersao` (era `VersaoTransacao.informe`);
-    - `VigenciaRetorno.mudaCalculo`, que compara a `EntradaCalculo` (vlInf, CBS/IBS Informado e docFiscal) de duas versões;
-    - `VigenciaRetorno.vence`: versão maior e, nela, o maior NSU;
-  - o que monta ou lê linha de tabela fica em `oracle-service/operacao`:
-    - `ValoresVigentes.dobrar` e `valorDe` (eram de `ValorVigente`);
-    - `ConciliacaoEstorno.confere` (era de `EstornoRecebido`) e `ImpeditivoNaoContratual.prazoNotificacao` (era de `TransacaoEmAnalise`);
-  - `DeclaracaoFiscal.entradaCalculo(valorOriginal)` converte a linha na `EntradaCalculo`.
+  A regra que combina linhas foi para `oracle-service/operacao`, em classes `final` só com funções `static`, porque o Java não tem função solta:
+  - `VigenciaRetorno`: `mudaCalculo`, `dobrar` e `valorDe` (eram de `VersaoTransacao` e `ValorVigente`);
+  - `InformeTransacao.daVersao` (era `VersaoTransacao.informe`);
+  - `ConciliacaoEstorno.confere` (era de `EstornoRecebido`) e `ImpeditivoNaoContratual.prazoNotificacao` (era de `TransacaoEmAnalise`).
+- **A split-lib é o núcleo compartilhado, e pequeno.** Fica nela o vocabulário (tipos de valor, ids e enums do manual),
+  o contrato dos eventos e a `TriagemInteligente`, que os três adapters aplicam igual. Regra que só um serviço executa mora nele:
+  se ela estivesse na lib, toda mudança viraria uma versão nova da qual todos os serviços dependem.
+  - `Segregacao` e `OrigemReferencia` foram para `oracle-service/calculo`: só o oracle-service calcula.
+  - `Segregacao.inteligente` saiu: devolvia o próprio informado. Os adapters passam o informado como segregado, e o evento confere.
+  - A versão em colunas de `Segregacao.superInteligente` saiu: ninguém a chamava.
 
 ## Em aberto nestes arquivos
 

@@ -5,7 +5,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import split.core.Arranjo;
-import split.core.Segregacao;
 import split.core.TriagemInteligente;
 import split.core.TriagemInteligente.Avaliacao;
 import split.core.Validacoes;
@@ -55,8 +54,8 @@ public final class TradutorTef {
                     dados.valorCentavos(),
                     dados.cbsCentavos(),
                     dados.ibsCentavos(),
-                    Segregacao.inteligente(dados.cbsCentavos()),
-                    Segregacao.inteligente(dados.ibsCentavos()),
+                    dados.cbsCentavos(),           // no Inteligente o segregado é o informado (Operações §5.1)
+                    dados.ibsCentavos(),
                     dados.documentoFiscal(),
                     dados.debitadoEm(),
                     dados.debitadoEm(),
