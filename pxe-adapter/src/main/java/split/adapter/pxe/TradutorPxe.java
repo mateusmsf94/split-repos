@@ -6,9 +6,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import split.core.Arranjo;
-import split.core.RegrasInteligente;
-import split.core.RegrasInteligente.Avaliacao;
 import split.core.Segregacao;
+import split.core.TriagemInteligente;
+import split.core.TriagemInteligente.Avaliacao;
 import split.core.Validacoes;
 import split.eventos.PagamentoRecebido;
 
@@ -59,13 +59,13 @@ public final class TradutorPxe {
             case QRDN, APDN, AUTO -> throw new IllegalArgumentException("forma " + forma + " não é Pix Estático");
         };
 
-        Avaliacao avaliacao = RegrasInteligente.avaliar(Arranjo.PXE, iniciadaPorTerceiro, dados.cbsCentavos(),
+        Avaliacao avaliacao = TriagemInteligente.avaliar(Arranjo.PXE, iniciadaPorTerceiro, dados.cbsCentavos(),
                 dados.ibsCentavos(), dados.documentoFiscal(), dados.cnpjPagador(), dados.cnpjRecebedor(),
                 dados.valorCentavos());
 
         return switch (avaliacao) {
             case Avaliacao.SemSplit semSplit -> Optional.empty();
-            case Avaliacao.Invalido invalido -> throw new RegrasInteligente.CamposFiscaisInvalidos(invalido.motivo());
+            case Avaliacao.Invalido invalido -> throw new TriagemInteligente.CamposFiscaisInvalidos(invalido.motivo());
             case Avaliacao.ComSplit comSplit -> Optional.of(new PagamentoRecebido(
                     idEvento,
                     Arranjo.PXE,

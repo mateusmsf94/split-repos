@@ -1,5 +1,8 @@
 package split.oracle.modelo;
 
+import java.util.Objects;
+
+import split.core.Centavos;
 import split.core.Tributo;
 import split.core.Validacoes;
 
@@ -12,23 +15,24 @@ import split.core.Validacoes;
 public record DeclaracaoFiscal(
         long txKey,
         int versao,
-        long cbsInformadoCentavos,
-        long ibsInformadoCentavos,
+        Centavos cbsInformado,
+        Centavos ibsInformado,
         String documentoFiscal) {
 
     public DeclaracaoFiscal {
-        Validacoes.naoNegativo(cbsInformadoCentavos, "vlCbsInf");
-        Validacoes.naoNegativo(ibsInformadoCentavos, "vlIbsInf");
+        Objects.requireNonNull(cbsInformado, "vlCbsInf");
+        Objects.requireNonNull(ibsInformado, "vlIbsInf");
         if (documentoFiscal != null) Validacoes.tamanho(documentoFiscal, 1, 50, "docFiscal");
     }
 
     /** Validação sintática mínima do PSP: CBS + IBS não ultrapassa o Valor Original (Operações §7.1). */
-    public boolean cabeEm(long valorOriginalCentavos) {
-        return cbsInformadoCentavos <= valorOriginalCentavos
-                && ibsInformadoCentavos <= valorOriginalCentavos - cbsInformadoCentavos;
+    public boolean cabeEm(Centavos valorOriginal) {
+        long original = valorOriginal.valor();
+        long cbs = cbsInformado.valor();
+        return cbs <= original && ibsInformado.valor() <= original - cbs;
     }
 
-    public long informado(Tributo tributo) {
-        return tributo == Tributo.CBS ? cbsInformadoCentavos : ibsInformadoCentavos;
+    public Centavos informado(Tributo tributo) {
+        return tributo == Tributo.CBS ? cbsInformado : ibsInformado;
     }
 }

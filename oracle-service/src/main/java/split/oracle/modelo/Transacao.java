@@ -3,7 +3,7 @@ package split.oracle.modelo;
 import java.util.Objects;
 
 import split.core.Arranjo;
-import split.core.Validacoes;
+import split.core.CnpjRaiz;
 
 /**
  * Tabela TRANSACAO. Chave: txKey. Só o que não muda depois da criação.
@@ -11,10 +11,10 @@ import split.core.Validacoes;
  * Nos arranjos do Pagador nasce no pagamento e tem uma versão só.
  * A criação é o registradaEm da versão 1: não se repete aqui.
  */
-public record Transacao(long txKey, Arranjo arranjo, String cnpjRaizPspRecDir) {
+public record Transacao(long txKey, Arranjo arranjo, CnpjRaiz cnpjRaizPspRecDir) {
 
     public Transacao {
         Objects.requireNonNull(arranjo, "arranjo");
-        Validacoes.exigir(Validacoes.CNPJ_RAIZ, cnpjRaizPspRecDir, "cnpjRaizPspRecDir");
+        Objects.requireNonNull(cnpjRaizPspRecDir, "cnpjRaizPspRecDir");
     }
 }

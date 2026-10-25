@@ -3,7 +3,6 @@ package split.oracle.modelo;
 import java.time.Instant;
 
 import split.core.TipoInforme;
-import split.core.Validacoes;
 
 /**
  * Tabela PENDENCIA_ENVIO: obrigação de envio à PP de um item de transação.
@@ -15,6 +14,6 @@ import split.core.Validacoes;
  */
 public record PendenciaEnvio(TipoInforme informe, long txKey, int numPgto, int versao, Instant criadaEm) {
     public PendenciaEnvio {
-        Validacoes.numPgto(informe, numPgto);
+        informe.exigirNumPgto(numPgto);
     }
 }

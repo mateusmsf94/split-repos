@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
+import split.core.Centavos;
+import split.core.CnpjOuCpf;
 import split.core.IdOcorrencia;
 import split.core.MotivoOcorrencia;
 import split.core.TipoOcorrencia;
@@ -18,7 +20,7 @@ public sealed interface Ocorrencia {
 
     int numPgto();
 
-    String cnpjCpfParteDestinataria();
+    CnpjOuCpf cnpjCpfParteDestinataria();
 
     Instant enviadaEm();
 
@@ -27,7 +29,7 @@ public sealed interface Ocorrencia {
             IdOcorrencia id,
             long txKey,
             int numPgto,
-            String cnpjCpfParteDestinataria,
+            CnpjOuCpf cnpjCpfParteDestinataria,
             String descricao,
             String orgaoResponsavelProcesso,
             String numeroProcesso,
@@ -36,7 +38,7 @@ public sealed interface Ocorrencia {
         public NotificacaoTransacaoEmAnalise {
             if (id.tipo() != TipoOcorrencia.NOTIFICACAO) throw new IllegalArgumentException("idOcor precisa começar com NOT");
             Validacoes.numPgto(numPgto);
-            Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfParteDestinataria, "cnpjCpfDest");
+            Objects.requireNonNull(cnpjCpfParteDestinataria, "cnpjCpfDest");
             if (descricao != null) Validacoes.tamanho(descricao, 0, 100, "descOcor");
             if (orgaoResponsavelProcesso != null) Validacoes.tamanho(orgaoResponsavelProcesso, 1, 8, "orgRespProcAdm");
             if (numeroProcesso != null) Validacoes.tamanho(numeroProcesso, 1, 20, "numProcAdm");
@@ -48,10 +50,10 @@ public sealed interface Ocorrencia {
             IdOcorrencia id,
             long txKey,
             int numPgto,
-            String cnpjCpfParteDestinataria,
+            CnpjOuCpf cnpjCpfParteDestinataria,
             MotivoOcorrencia motivo,
-            long cbsEstornarCentavos,
-            long ibsEstornarCentavos,
+            Centavos cbsEstornar,
+            Centavos ibsEstornar,
             String descricao,
             Instant enviadaEm) implements Ocorrencia {
 
@@ -61,9 +63,9 @@ public sealed interface Ocorrencia {
             if (id.tipo() != TipoOcorrencia.SOLICITACAO) throw new IllegalArgumentException("idOcor precisa começar com SOL");
             Validacoes.numPgto(numPgto);
             Objects.requireNonNull(motivo, "codMotOcor");
-            Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfParteDestinataria, "cnpjCpfDest");
-            Validacoes.naoNegativo(cbsEstornarCentavos, "vlCbsEst");
-            Validacoes.naoNegativo(ibsEstornarCentavos, "vlIbsEst");
+            Objects.requireNonNull(cnpjCpfParteDestinataria, "cnpjCpfDest");
+            Objects.requireNonNull(cbsEstornar, "vlCbsEst");
+            Objects.requireNonNull(ibsEstornar, "vlIbsEst");
             if (descricao != null) Validacoes.tamanho(descricao, 0, 100, "descOcor");
         }
     }

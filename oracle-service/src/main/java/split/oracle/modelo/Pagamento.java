@@ -1,7 +1,11 @@
 package split.oracle.modelo;
 
 import java.time.Instant;
+import java.util.Objects;
 
+import split.core.Centavos;
+import split.core.CnpjOuCpf;
+import split.core.CnpjRaiz;
 import split.core.Validacoes;
 
 /**
@@ -11,21 +15,15 @@ import split.core.Validacoes;
 public record Pagamento(
         long txKey,
         int numPgto,
-        long valorPagoCentavos,
+        Centavos valorPago,
         Instant dataHoraPagamento,
         Instant dataHoraLiquidacao,
         String e2eId,
-        String cnpjCpfPagadorEfetivo,
-        String cnpjRaizPspPagador) {
+        CnpjOuCpf cnpjCpfPagadorEfetivo,
+        CnpjRaiz cnpjRaizPspPagador) {
 
     public Pagamento {
         Validacoes.numPgto(numPgto);
-        Validacoes.naoNegativo(valorPagoCentavos, "vlPago");
-        if (cnpjCpfPagadorEfetivo != null) {
-            Validacoes.exigir(Validacoes.CNPJ_OU_CPF, cnpjCpfPagadorEfetivo, "cnpjCpfPagEfet");
-        }
-        if (cnpjRaizPspPagador != null) {
-            Validacoes.exigir(Validacoes.CNPJ_RAIZ, cnpjRaizPspPagador, "cnpjRaizPspPag");
-        }
+        Objects.requireNonNull(valorPago, "vlPago");
     }
 }

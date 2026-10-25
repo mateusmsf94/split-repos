@@ -5,7 +5,9 @@ import java.time.Instant;
 import java.util.Objects;
 
 import split.core.Arranjo;
+import split.core.Centavos;
 import split.core.IdOcorrencia;
+import split.core.Nsu;
 import split.core.OrgaoResponsavel;
 import split.core.Parecer;
 import split.core.TipoOcorrencia;
@@ -17,12 +19,12 @@ import split.core.Validacoes;
  * O arranjo não é gravado: já está dentro do idOcor.
  */
 public record RespostaOcorrencia(
-        long nsu,
+        Nsu nsu,
         IdOcorrencia ocorrencia,
         Tributo tributo,
         OrgaoResponsavel orgao,
         Parecer parecer,
-        long valorTributoEstornarCentavos,
+        Centavos valorTributoEstornar,
         String descricaoParecer,
         String orientacao,
         Instant enviadaEm,
@@ -36,7 +38,8 @@ public record RespostaOcorrencia(
         if (ocorrencia.tipo() != TipoOcorrencia.SOLICITACAO) throw new IllegalArgumentException("só solicitações têm resposta");
         if (orgao != tributo.orgao()) throw new IllegalArgumentException(tributo + " é respondido por " + tributo.orgao());
         Objects.requireNonNull(parecer, "codParecer");
-        Validacoes.naoNegativo(valorTributoEstornarCentavos, "vlTribEst");
+        Objects.requireNonNull(nsu, "nsu");
+        Objects.requireNonNull(valorTributoEstornar, "vlTribEst");
         if (descricaoParecer != null) Validacoes.tamanho(descricaoParecer, 1, 500, "descParecer");
         if (orientacao != null) Validacoes.tamanho(orientacao, 1, 500, "orientSolic");
     }

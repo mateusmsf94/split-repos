@@ -16,21 +16,13 @@ public final class Validacoes {
     /** Limite de itens por requisição à Plataforma Pública (Integração cap. 3). */
     public static final int MAX_ITENS_POR_REQUISICAO = 1_000;
 
-    public static final Pattern CNPJ = Pattern.compile("[A-Za-z0-9]{14}");
-    public static final Pattern CNPJ_RAIZ = Pattern.compile("[A-Za-z0-9]{8}");
-    public static final Pattern CPF = Pattern.compile("\\d{11}");
-    public static final Pattern CNPJ_OU_CPF = Pattern.compile("\\d{11}|[A-Za-z0-9]{14}");
-    public static final Pattern ISPB = Pattern.compile("[A-Za-z0-9]{8}");
+    // CNPJ, CPF, raiz do CNPJ, ISPB e NSU têm tipo próprio, com o FORMATO dentro (Cnpj, Cpf, CnpjRaiz, Ispb, Nsu).
     public static final Pattern CODIGO_BARRAS = Pattern.compile("\\d{44}");
-    public static final Pattern NSU = Pattern.compile("\\d{1,19}");
+    /** numIdentcBaixa: mesmo formato do nsuId, mas é o identificador da baixa na Núclea, não um NSU. */
+    public static final Pattern ATE_19_DIGITOS = Pattern.compile("\\d{1,19}");
 
     public static final DateTimeFormatter AAAAMMDD = DateTimeFormatter.ofPattern("uuuuMMdd");
     public static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HHmm");
-
-    /** Identificado por CNPJ = PJ para o split (inclui pessoa física com CNPJ, Operações A.4). */
-    public static boolean ehCnpj(String valor) {
-        return valor != null && CNPJ.matcher(valor).matches();
-    }
 
     /** Campo omitido, null ou vazio é "não informado" (Integração §3.1). Só espaços também conta como vazio. */
     public static boolean informado(String valor) {
@@ -73,16 +65,6 @@ public final class Validacoes {
     /** numPgto: de 1 a 999.999.999 (numérico de até 9 dígitos). */
     public static void numPgto(int numPgto) {
         faixa(numPgto, 1, 999_999_999, "numPgto");
-    }
-
-    /** numPgto de um informe: SEM_PAGAMENTO nos da transação, de 1 a 999.999.999 nos demais. */
-    public static void numPgto(TipoInforme informe, int numPgto) {
-        if (informe.daRemessa()) throw new IllegalArgumentException(informe + " é da remessa, não de uma transação");
-        if (!informe.daTransacao()) {
-            numPgto(numPgto);
-        } else if (numPgto != TipoInforme.SEM_PAGAMENTO) {
-            throw new IllegalArgumentException(informe + " não tem pagamento: numPgto = " + TipoInforme.SEM_PAGAMENTO);
-        }
     }
 
     public static LocalDate lerData(String aaaammdd) {

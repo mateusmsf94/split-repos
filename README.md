@@ -29,7 +29,7 @@ pxe-adapter/        → split-core, split-eventos
 | `Arranjo`, `Iniciador`, `Tributo`, `OrgaoResponsavel`, `OrigemReferencia` | split-core | agora |
 | `IdentificadorTransacao` com `IdPixEstatico`, `IdTed`, `IdTef` | split-core | agora |
 | `Segregacao` | split-core | agora |
-| Padrões e validações de `Formatos` | split-core (`Validacoes`) | agora |
+| Padrões e validações de `Formatos` | split-core (`Validacoes`; CNPJ, CPF, raiz, ISPB e NSU nos tipos `Cnpj`, `Cpf`, `CnpjOuCpf`, `CnpjRaiz`, `Ispb`, `Nsu`) | agora |
 | `IdBoleto`, `IdPixCobranca` (dentro de `IdentificadorTransacao`) | split-core | depois: Super Inteligente |
 | `TipoRetorno`, `TipoInforme`, `TipoOcorrencia`, `MotivoOcorrencia` | split-core | depois |
 | `IdRepasse`, `IdInformeSegregacao`, `IdLote`, `IdOcorrencia`, `Parecer` | split-core | depois: segregação e MOC |
@@ -39,12 +39,12 @@ pxe-adapter/        → split-core, split-eventos
 | `PendenciaEnvio`, `Requisicao`, `ItemEnviado`, `ItemRejeitado` | oracle-service | depois: envio à PP |
 | `RemessaIniciada`, `LoteEnviado`, `ItemLote`, `RemessaFinalizada`, `RepasseExecutado`, `ItemRepasseBoleto`, `MarcoTemporal` | oracle-service | depois: segregação e repasse |
 | `Participante`, `PapelNoArranjo`, `ConfiguracaoArranjo`, `DiaUtil` | oracle-service | depois: segregação |
-| Decimal, data e hora `-03:00` e nsu de `Formatos` | pp-adapter (`FormatoJsonPp`) | depois: envio à PP |
+| Decimal e data e hora `-03:00` de `Formatos` | pp-adapter (`FormatoJsonPp`) | depois: envio à PP |
 | `CodigoRsup`, `RegraCampo` | pp-adapter | depois |
 
 ## O que é novo (decidido hoje, não estava no arquivo único)
 
-- `split-core/RegrasInteligente`: a triagem do pagamento recebido (com split, sem split ou inválido).
+- `split-core/TriagemInteligente`: a triagem do pagamento recebido (com split, sem split ou inválido).
 - `split-eventos/PagamentoRecebido`: corpo do REST e mensagem do Kafka.
   O identificador vai plano, `arranjo` + `identificador` (texto), como as colunas de INDICE_IDENTIFICADOR;
   `identificadorTransacao()` devolve o tipo. Assim o JSON sai sem tipo polimórfico e a biblioteca fica sem anotação de Jackson.
@@ -96,7 +96,16 @@ pxe-adapter/        → split-core, split-eventos
   - `EstornoDevolvido`: o PSP repassou à parte prejudicada pelo backoffice. Meta 24h, ANS 2 dias úteis, fora do IGA (Tempos §8.1).
   - Recebido sem devolvido = valor da parte prejudicada parado no PSP.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
-  `Validacoes.numPgto(informe, numPgto)` confere isso em `PendenciaEnvio`; `TipoInforme.daTransacao()` e `daRemessa()` separam os informes.
+  `TipoInforme.exigirNumPgto(numPgto)` confere isso em `PendenciaEnvio`; `daTransacao()` e `daRemessa()` separam os informes.
+- **Tipos de valor.** Os records de tabela e os ids do core usam `Cnpj`, `Cpf`, `CnpjOuCpf`, `CnpjRaiz`, `Ispb`, `Nsu` e `Centavos`
+  no lugar de `String` e `long` validados. Trocar ISPB por raiz de CNPJ, ou NSU por valor, deixa de compilar.
+  - Os campos perderam o sufixo `Centavos`: `valorPagoCentavos` virou `valorPago`, e assim por diante.
+  - Cada tipo tem o `FORMATO` dentro; `Validacoes` ficou com o que é genérico (tamanho, faixa, data, código de barras).
+  - Ficam em texto e long: `PagamentoRecebido`, que é o JSON plano; `Segregacao`, que calcula em long (e em colunas);
+    e os `Dados...` dos adapters, que são a entrada crua do parser. A conversão acontece em `RegistroPagamentoRecebido`.
+  - `CalculoSegregacao`: `tetoEmAberto` null = sem EM ABERTO (no lugar de `SEM_TETO`) e `nsuBase` null no Inteligente (no lugar de 0).
+  - `FormatoJsonPp.lerCentavos` devolve `Centavos`; o nsuId se lê com `Nsu.ler`.
+- `RegrasInteligente` virou `TriagemInteligente`, que diz o que ela faz.
 
 ## Em aberto nestes arquivos
 

@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 
+import split.core.Centavos;
+import split.core.Cnpj;
+import split.core.CnpjRaiz;
 import split.core.IdentificadorTransacao;
 import split.core.Segregacao;
 import split.core.Tributo;
@@ -19,6 +22,7 @@ import split.oracle.modelo.VersaoTransacao;
 
 /**
  * POST /pagamentos-recebidos. Transforma o evento nas linhas que o repositório grava numa transação só.
+ * O evento é plano (texto e long); é aqui que os valores viram Cnpj, CnpjRaiz e Centavos.
  *
  * Retentativa: o insert em INDICE_IDENTIFICADOR bate na unique constraint; o repositório então devolve
  * o txKey que já existe e não grava nenhuma outra linha (nem na OUTBOX).
@@ -41,23 +45,26 @@ public final class RegistroPagamentoRecebido {
     /** payloadJson: o próprio evento serializado, que vai para a OUTBOX e depois para o Kafka. */
     public static Linhas projetar(PagamentoRecebido evento, long txKey, String payloadJson) {
         // No Inteligente não há cobrança prévia: uma versão só, com pagador original = pagador efetivo
-        // e valor original = valor pago.
-        Transacao transacao = new Transacao(txKey, evento.arranjo(), evento.cnpjRaizPspRecDir());
-        VersaoTransacao versao = new VersaoTransacao(txKey, 1, evento.cnpjRecebedor(), evento.cnpjCpfPagadorEfetivo(),
-                evento.valorPagoCentavos(), null, null, false, evento.recebidoEm());
+        // e valor original = valor pago. O pagador é sempre PJ aqui (o evento confere), então cabe em cnpjPagOrig.
+        Transacao transacao = new Transacao(txKey, evento.arranjo(), new CnpjRaiz(evento.cnpjRaizPspRecDir()));
+        Centavos valorPago = new Centavos(evento.valorPagoCentavos());
+        Cnpj pagador = new Cnpj(evento.cnpjCpfPagadorEfetivo());
+        VersaoTransacao versao = new VersaoTransacao(txKey, 1, new Cnpj(evento.cnpjRecebedor()), pagador,
+                valorPago, null, null, false, evento.recebidoEm());
 
         IdentificadorTransacao id = evento.identificadorTransacao();
         IndiceIdentificador indice = new IndiceIdentificador(id, txKey);
 
         String e2eId = id instanceof IdentificadorTransacao.IdPixEstatico pix ? pix.e2eId() : null;
-        Pagamento pagamento = new Pagamento(txKey, 1, evento.valorPagoCentavos(), evento.dataHoraPagamento(),
-                evento.dataHoraLiquidacao(), e2eId, evento.cnpjCpfPagadorEfetivo(), evento.cnpjRaizPspPagador());
+        CnpjRaiz pspPagador = evento.cnpjRaizPspPagador() == null ? null : new CnpjRaiz(evento.cnpjRaizPspPagador());
+        Pagamento pagamento = new Pagamento(txKey, 1, valorPago, evento.dataHoraPagamento(),
+                evento.dataHoraLiquidacao(), e2eId, pagador, pspPagador);
 
-        DeclaracaoFiscal declaracao = new DeclaracaoFiscal(txKey, 1, evento.cbsInformadoCentavos(),
-                evento.ibsInformadoCentavos(), evento.documentoFiscal());
+        DeclaracaoFiscal declaracao = new DeclaracaoFiscal(txKey, 1, new Centavos(evento.cbsInformadoCentavos()),
+                new Centavos(evento.ibsInformadoCentavos()), evento.documentoFiscal());
 
         Optional<RecebedorIndireto> recebedorIndireto = Optional.ofNullable(evento.cnpjRaizPspRecInd())
-                .map(raiz -> new RecebedorIndireto(txKey, raiz));
+                .map(raiz -> new RecebedorIndireto(txKey, new CnpjRaiz(raiz)));
 
         List<CalculoSegregacao> calculos = List.of(
                 calculo(evento, txKey, Tributo.CBS, evento.cbsInformadoCentavos()),
@@ -73,6 +80,7 @@ public final class RegistroPagamentoRecebido {
         long valor = evento.valorPagoCentavos();
         Segregacao.Resultado resultado = Segregacao.calcular(evento.arranjo(), valor, valor, informado,
                 OptionalLong.empty(), OptionalLong.empty());
-        return CalculoSegregacao.de(txKey, 1, 1, tributo, valor, valor, resultado, 0, evento.recebidoEm());
+        Centavos valorPago = new Centavos(valor);
+        return CalculoSegregacao.de(txKey, 1, 1, tributo, valorPago, valorPago, resultado, null, evento.recebidoEm());
     }
 }

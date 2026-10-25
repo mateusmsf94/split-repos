@@ -2,6 +2,7 @@ package split.core;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -10,8 +11,8 @@ import java.util.regex.Pattern;
  * + horário de corte HHMM (4) + sequencial (3) = 34.
  */
 public record IdInformeSegregacao(
-        String ispbRecebedorDireto,
-        String ispbComunicacaoEfetiva,
+        Ispb ispbRecebedorDireto,
+        Ispb ispbComunicacaoEfetiva,
         Arranjo arranjo,
         LocalDate dataEnvio,
         LocalTime horarioCorte,
@@ -21,8 +22,8 @@ public record IdInformeSegregacao(
             Pattern.compile("([A-Za-z0-9]{8})([A-Za-z0-9]{8})(PXA|PXD|PXE|BOL|TED|TEF)(\\d{8})(\\d{4})(\\d{3})");
 
     public IdInformeSegregacao {
-        Validacoes.exigir(Validacoes.ISPB, ispbRecebedorDireto, "ispb recebedor direto");
-        Validacoes.exigir(Validacoes.ISPB, ispbComunicacaoEfetiva, "ispb comunicação efetiva");
+        Objects.requireNonNull(ispbRecebedorDireto, "ispb recebedor direto");
+        Objects.requireNonNull(ispbComunicacaoEfetiva, "ispb comunicação efetiva");
         if (horarioCorte.getSecond() != 0 || horarioCorte.getNano() != 0) {
             throw new IllegalArgumentException("horário de corte é HHMM");
         }
@@ -30,14 +31,14 @@ public record IdInformeSegregacao(
     }
 
     public String texto() {
-        return ispbRecebedorDireto + ispbComunicacaoEfetiva + arranjo.name()
+        return ispbRecebedorDireto.valor() + ispbComunicacaoEfetiva.valor() + arranjo.name()
                 + Validacoes.AAAAMMDD.format(dataEnvio) + Validacoes.HHMM.format(horarioCorte)
                 + "%03d".formatted(sequencial);
     }
 
     public static IdInformeSegregacao ler(String texto) {
         Matcher m = Validacoes.casar(FORMATO, texto, "idInfSegr");
-        return new IdInformeSegregacao(m.group(1), m.group(2), Arranjo.valueOf(m.group(3)),
+        return new IdInformeSegregacao(new Ispb(m.group(1)), new Ispb(m.group(2)), Arranjo.valueOf(m.group(3)),
                 Validacoes.lerData(m.group(4)), Validacoes.lerHora(m.group(5)), Integer.parseInt(m.group(6)));
     }
 }

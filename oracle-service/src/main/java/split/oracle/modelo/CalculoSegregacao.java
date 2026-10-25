@@ -2,6 +2,8 @@ package split.oracle.modelo;
 
 import java.time.Instant;
 
+import split.core.Centavos;
+import split.core.Nsu;
 import split.core.OrigemReferencia;
 import split.core.Segregacao;
 import split.core.Tributo;
@@ -12,19 +14,20 @@ import split.core.Validacoes;
  * Guarda as entradas usadas, a versão da transação e o NSU-base: é a prova de que o PSP usou o que tinha
  * processado a tempo da liquidação (Operações §7.2).
  * Não existe no Boleto: lá o segregado vem calculado pela Núclea, em DADOS_PAGAMENTO_BOLETO.
+ * tetoEmAberto: null = não havia EM ABERTO. nsuBase: null no Inteligente, que não tem retorno.
  */
 public record CalculoSegregacao(
         long txKey,
         int numPgto,
         int versao,
         Tributo tributo,
-        long valorPagoCentavos,
-        long valorOriginalCentavos,
-        long referenciaCentavos,
+        Centavos valorPago,
+        Centavos valorOriginal,
+        Centavos referencia,
         OrigemReferencia origemReferencia,
-        long tetoEmAbertoCentavos,
-        long nsuBase,
-        long segregadoCentavos,
+        Centavos tetoEmAberto,
+        Nsu nsuBase,
+        Centavos segregado,
         Instant calculadoEm) {
 
     public CalculoSegregacao {
@@ -32,15 +35,19 @@ public record CalculoSegregacao(
     }
 
     public boolean tinhaEmAberto() {
-        return tetoEmAbertoCentavos != Segregacao.SEM_TETO;
+        return tetoEmAberto != null;
     }
 
-    /** versao: a de VERSAO_TRANSACAO vigente na liquidação. nsuBase: maior NSU já processado no cálculo (0 no Inteligente). */
-    public static CalculoSegregacao de(long txKey, int numPgto, int versao, Tributo tributo, long valorPago,
-                                       long valorOriginal, Segregacao.Resultado resultado, long nsuBase,
+    /**
+     * Ponte do split-core, que calcula em long, para a linha.
+     * versao: a de VERSAO_TRANSACAO vigente na liquidação. nsuBase: maior NSU já processado no cálculo (null no Inteligente).
+     */
+    public static CalculoSegregacao de(long txKey, int numPgto, int versao, Tributo tributo, Centavos valorPago,
+                                       Centavos valorOriginal, Segregacao.Resultado resultado, Nsu nsuBase,
                                        Instant calculadoEm) {
+        Centavos teto = resultado.tinhaEmAberto() ? new Centavos(resultado.tetoCentavos()) : null;
         return new CalculoSegregacao(txKey, numPgto, versao, tributo, valorPago, valorOriginal,
-                resultado.referenciaCentavos(), resultado.origem(), resultado.tetoCentavos(),
-                nsuBase, resultado.segregadoCentavos(), calculadoEm);
+                new Centavos(resultado.referenciaCentavos()), resultado.origem(), teto,
+                nsuBase, new Centavos(resultado.segregadoCentavos()), calculadoEm);
     }
 }

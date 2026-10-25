@@ -2,6 +2,7 @@ package split.oracle.modelo;
 
 import java.time.Instant;
 
+import split.core.CnpjRaiz;
 import split.core.IdInformeSegregacao;
 import split.core.IdRepasse;
 
@@ -11,7 +12,7 @@ import split.core.IdRepasse;
  */
 public record RemessaIniciada(
         IdInformeSegregacao id,
-        String cnpjRaizPspRecDir,
+        CnpjRaiz cnpjRaizPspRecDir,
         IdRepasse repasse,
         Instant iniciadaEm,
         String resourceId) {

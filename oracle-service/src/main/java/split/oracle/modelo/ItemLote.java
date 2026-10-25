@@ -1,7 +1,9 @@
 package split.oracle.modelo;
 
+import java.util.Objects;
 import java.util.UUID;
 
+import split.core.Centavos;
 import split.core.Validacoes;
 
 /**
@@ -13,14 +15,14 @@ import split.core.Validacoes;
 public record ItemLote(
         UUID jti,
         int indice,
-        long valorPagoCentavos,
-        long cbsSegregadoCentavos,
-        long ibsSegregadoCentavos) {
+        Centavos valorPago,
+        Centavos cbsSegregado,
+        Centavos ibsSegregado) {
 
     public ItemLote {
         Validacoes.indice(indice);
-        Validacoes.naoNegativo(valorPagoCentavos, "vlPago");
-        Validacoes.naoNegativo(cbsSegregadoCentavos, "vlCbsSegr");
-        Validacoes.naoNegativo(ibsSegregadoCentavos, "vlIbsSegr");
+        Objects.requireNonNull(valorPago, "vlPago");
+        Objects.requireNonNull(cbsSegregado, "vlCbsSegr");
+        Objects.requireNonNull(ibsSegregado, "vlIbsSegr");
     }
 }

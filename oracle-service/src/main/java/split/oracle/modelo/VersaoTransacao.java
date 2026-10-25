@@ -6,8 +6,9 @@ import java.util.Objects;
 import java.util.Optional;
 
 import split.core.Arranjo;
+import split.core.Centavos;
+import split.core.Cnpj;
 import split.core.TipoInforme;
-import split.core.Validacoes;
 
 /**
  * Tabela VERSAO_TRANSACAO. Chave: (txKey, versao), versao de 1 em diante. Fato imutável, só insert.
@@ -27,9 +28,9 @@ import split.core.Validacoes;
 public record VersaoTransacao(
         long txKey,
         int versao,
-        String cnpjRecebedor,
-        String cnpjPagadorOriginal,
-        long valorOriginalCentavos,
+        Cnpj cnpjRecebedor,
+        Cnpj cnpjPagadorOriginal,
+        Centavos valorOriginal,
         LocalDate dataVencimento,
         Instant dataHoraLimitePagamento,
         boolean encerrada,
@@ -37,9 +38,8 @@ public record VersaoTransacao(
 
     public VersaoTransacao {
         if (versao < 1) throw new IllegalArgumentException("versao começa em 1");
-        Validacoes.exigir(Validacoes.CNPJ, cnpjRecebedor, "cnpjRec");
-        if (cnpjPagadorOriginal != null) Validacoes.exigir(Validacoes.CNPJ, cnpjPagadorOriginal, "cnpjPagOrig");
-        Validacoes.naoNegativo(valorOriginalCentavos, "vlInf");
+        Objects.requireNonNull(cnpjRecebedor, "cnpjRec");
+        Objects.requireNonNull(valorOriginal, "vlInf");
     }
 
     /**
@@ -70,9 +70,9 @@ public record VersaoTransacao(
      */
     public boolean mudaCalculo(VersaoTransacao anterior, DeclaracaoFiscal declaracaoAnterior, DeclaracaoFiscal declaracao) {
         if (anterior == null || declaracaoAnterior == null || declaracao == null) return true;
-        return valorOriginalCentavos != anterior.valorOriginalCentavos
-                || declaracao.cbsInformadoCentavos() != declaracaoAnterior.cbsInformadoCentavos()
-                || declaracao.ibsInformadoCentavos() != declaracaoAnterior.ibsInformadoCentavos()
+        return !valorOriginal.equals(anterior.valorOriginal)
+                || !declaracao.cbsInformado().equals(declaracaoAnterior.cbsInformado())
+                || !declaracao.ibsInformado().equals(declaracaoAnterior.ibsInformado())
                 || !Objects.equals(declaracao.documentoFiscal(), declaracaoAnterior.documentoFiscal());
     }
 }

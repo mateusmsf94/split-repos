@@ -3,6 +3,7 @@ package split.oracle.modelo;
 import java.time.Duration;
 import java.time.Instant;
 
+import split.core.Centavos;
 import split.core.IdOcorrencia;
 import split.core.Tributo;
 import split.core.Validacoes;
@@ -14,14 +15,14 @@ import split.core.Validacoes;
  * referencia: identificador da devolução no fluxo usado (e2eId do Pix, número de controle da TED etc.).
  * Prazo do PSP: meta 24h e ANS 2 dias úteis após o recebimento, contados com DIA_UTIL. Não compõe o IGA (Tempos §8.1).
  */
-public record EstornoDevolvido(IdOcorrencia ocorrencia, Tributo tributo, long valorCentavos, String referencia,
+public record EstornoDevolvido(IdOcorrencia ocorrencia, Tributo tributo, Centavos valor, String referencia,
                                Instant devolvidoEm) {
 
     public static final Duration META_DEVOLUCAO = Duration.ofHours(24);
     public static final int DIAS_UTEIS_DEVOLUCAO = 2;
 
     public EstornoDevolvido {
-        if (valorCentavos <= 0) throw new IllegalArgumentException("estorno devolvido precisa ser positivo");
+        if (!valor.positivo()) throw new IllegalArgumentException("estorno devolvido precisa ser positivo");
         if (!Validacoes.informado(referencia)) throw new IllegalArgumentException("referência da devolução não informada");
     }
 }

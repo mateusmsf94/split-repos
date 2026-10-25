@@ -17,4 +17,14 @@ public enum TipoInforme {
     public boolean daRemessa() {
         return this == SEGREGACAO_INICIO || this == SEGREGACAO_FINALIZACAO;
     }
+
+    /** numPgto de um item deste informe: SEM_PAGAMENTO nos da transação, de 1 a 999.999.999 nos demais. */
+    public void exigirNumPgto(int numPgto) {
+        if (daRemessa()) throw new IllegalArgumentException(this + " é da remessa, não de uma transação");
+        if (!daTransacao()) {
+            Validacoes.numPgto(numPgto);
+        } else if (numPgto != SEM_PAGAMENTO) {
+            throw new IllegalArgumentException(this + " não tem pagamento: numPgto = " + SEM_PAGAMENTO);
+        }
+    }
 }

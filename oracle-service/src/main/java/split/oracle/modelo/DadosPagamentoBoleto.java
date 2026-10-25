@@ -1,5 +1,8 @@
 package split.oracle.modelo;
 
+import java.util.Objects;
+
+import split.core.Centavos;
 import split.core.Validacoes;
 
 /**
@@ -12,13 +15,13 @@ public record DadosPagamentoBoleto(
         int numPgto,
         String numIdentcBaixa,
         boolean pagamentoIntegral,
-        long cbsSegregadoCentavos,
-        long ibsSegregadoCentavos) {
+        Centavos cbsSegregado,
+        Centavos ibsSegregado) {
 
     public DadosPagamentoBoleto {
         Validacoes.numPgto(numPgto);
-        Validacoes.exigir(Validacoes.NSU, numIdentcBaixa, "numIdentcBaixa");
-        Validacoes.naoNegativo(cbsSegregadoCentavos, "vlCbsSegr");
-        Validacoes.naoNegativo(ibsSegregadoCentavos, "vlIbsSegr");
+        Validacoes.exigir(Validacoes.ATE_19_DIGITOS, numIdentcBaixa, "numIdentcBaixa");
+        Objects.requireNonNull(cbsSegregado, "vlCbsSegr");
+        Objects.requireNonNull(ibsSegregado, "vlIbsSegr");
     }
 }

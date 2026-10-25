@@ -3,8 +3,11 @@ package split.oracle.modelo;
 import java.time.Duration;
 import java.time.Instant;
 
+import split.core.CnpjRaiz;
+import split.core.Nsu;
+
 /** Tabela CURSOR_OCORRENCIAS: paginação da consulta de respostas do MOC (por PSP, não por arranjo). */
-public record CursorOcorrencias(String cnpjRaizPspRecDir, long proximoNsu, Instant proximaConsultaEm) {
+public record CursorOcorrencias(CnpjRaiz cnpjRaizPspRecDir, Nsu proximoNsu, Instant proximaConsultaEm) {
 
     public static final Duration INTERVALO_SEM_NOVIDADE = Duration.ofMinutes(30);
 }

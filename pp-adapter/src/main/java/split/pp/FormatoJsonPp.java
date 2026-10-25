@@ -8,9 +8,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import split.core.Centavos;
 import split.core.Validacoes;
 
-/** Formato do JSON da Plataforma Pública (Manual de Integração §3.1). Só o pp-adapter fala esse formato. */
+/**
+ * Formato do JSON da Plataforma Pública (Manual de Integração §3.1). Só o pp-adapter fala esse formato.
+ * O nsuId é lido por Nsu.ler: o formato dele é do próprio tipo.
+ */
 public final class FormatoJsonPp {
 
     private FormatoJsonPp() {}
@@ -26,20 +30,20 @@ public final class FormatoJsonPp {
      * O schema vai até 1e18: o corte abaixo disso é deliberado.
      * No JSON o decimal é number, não string: o texto aqui é o do próprio número, lido sem passar por double.
      */
-    public static long lerCentavos(String texto) {
+    public static Centavos lerCentavos(String texto) {
         Matcher m = Validacoes.casar(DECIMAL, texto, "valor decimal");
         String casas = m.group(2) == null ? "00" : (m.group(2) + "0").substring(0, 2);
         try {
-            return Math.addExact(Math.multiplyExact(Long.parseLong(m.group(1)), 100L), Long.parseLong(casas));
+            return new Centavos(Math.addExact(Math.multiplyExact(Long.parseLong(m.group(1)), 100L), Long.parseLong(casas)));
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("valor acima do suportado: " + texto, e);
         }
     }
 
     /** 123456 → "1234.56". Vai no JSON como number, sem aspas. */
-    public static String formatarCentavos(long centavos) {
-        Validacoes.naoNegativo(centavos, "valor");
-        return "%d.%02d".formatted(centavos / 100, centavos % 100);
+    public static String formatarCentavos(Centavos centavos) {
+        long v = centavos.valor();
+        return "%d.%02d".formatted(v / 100, v % 100);
     }
 
     /** Instant → "2026-10-23T21:14:00-03:00" (25 caracteres, com o offset literal que a regex exige). */
@@ -50,15 +54,5 @@ public final class FormatoJsonPp {
     public static Instant lerDataHora(String texto) {
         Validacoes.casar(DATA_HORA_TEXTO, texto, "data e hora");
         return OffsetDateTime.parse(texto, DATA_HORA).toInstant();
-    }
-
-    /** nsuId tem até 19 dígitos; acima de Long.MAX_VALUE é rejeitado. */
-    public static long lerNsu(String texto) {
-        Validacoes.casar(Validacoes.NSU, texto, "nsuId");
-        try {
-            return Long.parseLong(texto);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("nsuId acima de Long.MAX_VALUE: " + texto, e);
-        }
     }
 }

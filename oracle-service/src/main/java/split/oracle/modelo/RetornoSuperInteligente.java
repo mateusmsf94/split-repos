@@ -2,12 +2,15 @@ package split.oracle.modelo;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 
 import split.core.Arranjo;
+import split.core.Centavos;
+import split.core.CnpjRaiz;
 import split.core.IdentificadorTransacao;
+import split.core.Nsu;
 import split.core.TipoRetorno;
 import split.core.Tributo;
-import split.core.Validacoes;
 
 /**
  * Tabela RETORNO_SUPER_INTELIGENTE. Fato imutável, só insert. Chave: (arranjo, cnpjRaizPspRecDir, nsu).
@@ -19,14 +22,14 @@ import split.core.Validacoes;
  */
 public record RetornoSuperInteligente(
         Arranjo arranjo,
-        String cnpjRaizPspRecDir,
-        long nsu,
+        CnpjRaiz cnpjRaizPspRecDir,
+        Nsu nsu,
         Tributo tributo,
         TipoRetorno tipo,
-        long valorCentavos,
+        Centavos valor,
         IdentificadorTransacao transacao,
         int versao,
-        long valorInformadoCentavos,
+        Centavos valorInformado,
         String documentoFiscal,
         Instant disponibilizadoEm,
         Instant consumidoEm) {
@@ -41,8 +44,9 @@ public record RetornoSuperInteligente(
         }
         if (transacao.arranjo() != arranjo) throw new IllegalArgumentException("identificador de outro arranjo");
         if (versao < 1) throw new IllegalArgumentException("versao começa em 1");
-        Validacoes.naoNegativo(valorCentavos, "valor do retorno");
-        Validacoes.naoNegativo(nsu, "nsuId");
+        Objects.requireNonNull(nsu, "nsuId");
+        Objects.requireNonNull(valor, "valor do retorno");
+        Objects.requireNonNull(valorInformado, "vlInf");
     }
 
     public boolean consumidoNoPrazo() {

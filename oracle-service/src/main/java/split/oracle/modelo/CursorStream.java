@@ -4,17 +4,19 @@ import java.time.Duration;
 import java.time.Instant;
 
 import split.core.Arranjo;
+import split.core.CnpjRaiz;
+import split.core.Nsu;
 
 /**
  * Tabela CURSOR_STREAM. Posição de leitura do long polling do Super Inteligente, por (arranjo, PSP).
- * Só PXD e PXA: no Boleto quem lê o stream é a Núclea.
+ * Só PXD e PXA: no Boleto quem lê o stream é a Núclea. ultimoNsu: null = nada lido ainda.
  */
 public record CursorStream(
         Arranjo arranjo,
-        String cnpjRaizPspRecDir,
+        CnpjRaiz cnpjRaizPspRecDir,
         String streamId,
         String proximoToken,
-        long ultimoNsu,
+        Nsu ultimoNsu,
         Instant tokenRecebidoEm) {
 
     public static final Duration VALIDADE_TOKEN = Duration.ofMinutes(2);

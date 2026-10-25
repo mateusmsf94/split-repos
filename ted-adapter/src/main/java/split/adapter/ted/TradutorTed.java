@@ -5,9 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import split.core.Arranjo;
-import split.core.RegrasInteligente;
-import split.core.RegrasInteligente.Avaliacao;
 import split.core.Segregacao;
+import split.core.TriagemInteligente;
+import split.core.TriagemInteligente.Avaliacao;
 import split.core.Validacoes;
 import split.eventos.PagamentoRecebido;
 
@@ -36,13 +36,13 @@ public final class TradutorTed {
 
     /** Vazio = transação sem split, nada a fazer. */
     public static Optional<PagamentoRecebido> traduzir(DadosLiquidacaoTed dados, UUID idEvento, Instant agora) {
-        Avaliacao avaliacao = RegrasInteligente.avaliar(Arranjo.TED, Validacoes.informado(dados.cnpjIniciador()),
+        Avaliacao avaliacao = TriagemInteligente.avaliar(Arranjo.TED, Validacoes.informado(dados.cnpjIniciador()),
                 dados.cbsCentavos(), dados.ibsCentavos(), dados.documentoFiscal(), dados.cnpjPagador(),
                 dados.cnpjRecebedor(), dados.valorCentavos());
 
         return switch (avaliacao) {
             case Avaliacao.SemSplit semSplit -> Optional.empty();
-            case Avaliacao.Invalido invalido -> throw new RegrasInteligente.CamposFiscaisInvalidos(invalido.motivo());
+            case Avaliacao.Invalido invalido -> throw new TriagemInteligente.CamposFiscaisInvalidos(invalido.motivo());
             case Avaliacao.ComSplit comSplit -> Optional.of(new PagamentoRecebido(
                     idEvento,
                     Arranjo.TED,

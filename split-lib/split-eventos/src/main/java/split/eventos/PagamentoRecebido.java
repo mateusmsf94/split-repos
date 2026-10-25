@@ -5,6 +5,8 @@ import java.util.Objects;
 import java.util.UUID;
 
 import split.core.Arranjo;
+import split.core.Cnpj;
+import split.core.CnpjRaiz;
 import split.core.IdentificadorTransacao;
 import split.core.Validacoes;
 
@@ -14,6 +16,9 @@ import split.core.Validacoes;
  *
  * O identificador vai plano, arranjo + texto, como as colunas de INDICE_IDENTIFICADOR:
  * o JSON não precisa de tipo polimórfico. identificadorTransacao() devolve o tipo.
+ *
+ * Os campos são texto e long, não Cnpj nem Centavos: este record é o JSON, e assim ele sai plano e sem anotação
+ * de Jackson. O formato é conferido aqui com o FORMATO de cada tipo; os tipos entram ao gravar as linhas.
  *
  * null = N/E no arranjo:
  *   cnpjRaizPspRecInd só existe no PXE (e é opcional);
@@ -47,17 +52,17 @@ public record PagamentoRecebido(
         }
         IdentificadorTransacao.de(arranjo, identificador); // valida o identificador no formato do arranjo
 
-        Validacoes.exigir(Validacoes.CNPJ_RAIZ, cnpjRaizPspRecDir, "cnpjRaizPspRecDir");
+        Validacoes.exigir(CnpjRaiz.FORMATO, cnpjRaizPspRecDir, "cnpjRaizPspRecDir");
         if (cnpjRaizPspRecInd != null) {
             if (arranjo != Arranjo.PXE) throw new IllegalArgumentException("PSP Recebedor Indireto só existe no PXE");
-            Validacoes.exigir(Validacoes.CNPJ_RAIZ, cnpjRaizPspRecInd, "cnpjRaizPspRecInd");
+            Validacoes.exigir(CnpjRaiz.FORMATO, cnpjRaizPspRecInd, "cnpjRaizPspRecInd");
         }
-        Validacoes.exigir(Validacoes.CNPJ, cnpjRecebedor, "cnpjRec");
-        Validacoes.exigir(Validacoes.CNPJ, cnpjCpfPagadorEfetivo, "cnpjCpfPagEfet (no Inteligente o pagador é PJ)");
+        Validacoes.exigir(Cnpj.FORMATO, cnpjRecebedor, "cnpjRec");
+        Validacoes.exigir(Cnpj.FORMATO, cnpjCpfPagadorEfetivo, "cnpjCpfPagEfet (no Inteligente o pagador é PJ)");
         if (arranjo == Arranjo.TEF) {
             if (cnpjRaizPspPagador != null) throw new IllegalArgumentException("TEF não tem PSP pagador");
         } else {
-            Validacoes.exigir(Validacoes.CNPJ_RAIZ, cnpjRaizPspPagador, "cnpjRaizPspPag");
+            Validacoes.exigir(CnpjRaiz.FORMATO, cnpjRaizPspPagador, "cnpjRaizPspPag");
         }
 
         Validacoes.naoNegativo(valorPagoCentavos, "vlPago");

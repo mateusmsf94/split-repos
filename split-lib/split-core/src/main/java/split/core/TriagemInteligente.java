@@ -1,9 +1,9 @@
 package split.core;
 
 /** Triagem de um pagamento recebido em PXE, TED ou TEF (Operações §1.2, §3.3 e §3.4.1). Usada pelos adapters. */
-public final class RegrasInteligente {
+public final class TriagemInteligente {
 
-    private RegrasInteligente() {}
+    private TriagemInteligente() {}
 
     public sealed interface Avaliacao {
         record ComSplit() implements Avaliacao {}
@@ -39,14 +39,14 @@ public final class RegrasInteligente {
         boolean algum = cbsCentavos != null || ibsCentavos != null || temDocumento;
         if (!algum) return new Avaliacao.SemSplit("campos fiscais não preenchidos");
 
-        if (!Validacoes.ehCnpj(cnpjCpfRecebedor)) {
+        if (!Cnpj.valido(cnpjCpfRecebedor)) {
             return new Avaliacao.SemSplit("recebedor PF: a transação segue sem split");
         }
 
         boolean todos = cbsCentavos != null && ibsCentavos != null && temDocumento;
         if (!todos) return new Avaliacao.Invalido("CBS, IBS e Documento Fiscal precisam vir juntos");
 
-        if (!Validacoes.ehCnpj(cnpjCpfPagador)) {
+        if (!Cnpj.valido(cnpjCpfPagador)) {
             return new Avaliacao.Invalido("pagador PF não preenche campos fiscais");
         }
         if (cbsCentavos < 0 || ibsCentavos < 0) return new Avaliacao.Invalido("CBS ou IBS negativo");
