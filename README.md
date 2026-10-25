@@ -57,7 +57,7 @@ pxe-adapter/        → split-core, split-eventos
 - `Formatos` virou dois: `Validacoes` (core) e `FormatoJsonPp` (pp-adapter).
 - `CalculoSegregacao.calcular(...)` virou `Segregacao.calcular(...)` no core:
   - recebe `OptionalLong` para "não existe retorno", que é diferente de zero;
-  - no oracle-service ficaram `CalculoSegregacao.de(...)` e `ValorVigente.valorDe(...)`, que converte linha ausente em vazio.
+  - no oracle-service ficaram `CalculoSegregacao.de(...)` e `ValoresVigentes.valorDe(...)`, que converte linha ausente em vazio.
 - `RetornoSuperInteligente.codigo()` saiu: `CodigoRsup` agora é do pp-adapter.
 - `Requisicao` ganhou `idComando`, para o pp-adapter não reenviar o mesmo comando com `jti` novo.
 - `ConfiguracaoArranjo.PADRAO` virou `CARGA_INICIAL`, porque é a carga inicial da tabela.
@@ -69,18 +69,18 @@ pxe-adapter/        → split-core, split-eventos
   Recebedor, pagador original, valor original, vencimento e limite de pagamento foram para `VersaoTransacao`, uma linha por alteração.
   - `DeclaracaoFiscal` usa a mesma chave (txKey, versao) e perdeu `registradaEm`: o horário é o da versão, e vai como `dtHrIni`, `dtHrAtu` ou `dtHrBaixa`.
   - A Baixa não apaga mais a declaração. A remoção dos campos fiscais é uma versão sem declaração; cancelamento e expiração são uma versão `encerrada`.
-  - `VersaoTransacao.informe(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
+  - `InformeTransacao.daVersao(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
   - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado` e `CalculoSegregacao` ganharam `versao` (o `ItemLote` a recebe do `ItemEnviado`): o que foi enviado é reconstruível mesmo depois de a transação mudar.
 - `Validacoes.numPgto` aplica o limite de 1 a 999.999.999 nos records que são por pagamento.
 - **Boleto visto do PSP.** O sistema é só PSP. No Boleto, a Núclea envia os informes, consome o Retorno e calcula o segregado
   (Operações §4.1 e §5.4); ao PSP ficam o registro do boleto na Núclea, o Repasse Financeiro e o MOC. `Arranjo.viaNuclea()` diz isso.
-  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente`, `RemessaIniciada` e `Segregacao.calcular`. `VersaoTransacao.informe` devolve vazio: a versão vai à Núclea.
+  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente`, `RemessaIniciada` e `Segregacao.calcular`. `InformeTransacao.daVersao` devolve vazio: a versão vai à Núclea.
   - `DadosPagamentoBoleto` ganhou o CBS/IBS Segregado que a Núclea calculou e manda na baixa. No Boleto não há `CalculoSegregacao`.
   - `ItemRepasseBoleto` diz em qual repasse entra cada pagamento de Boleto, papel que nos outros arranjos é da remessa do próprio PSP.
   - `ValorVigenteBoleto` guarda só os valores vigentes que a Núclea manda, sem NSU: o PSP não lê o stream do Boleto nem calcula com eles.
 - **Retorno por versão de cálculo.** Uma Atualizada que muda valor, CBS/IBS Informado ou docFiscal invalida os retornos anteriores (Operações §4.2.1).
-  - `VersaoTransacao.mudaCalculo(...)` diz se a versão muda o cálculo; a última que mudou é a versão de cálculo.
-  - `RetornoSuperInteligente` e `ValorVigente` ganharam `versao`. `ValorVigente.valorDe` recebe a versão de cálculo e devolve vazio para a linha de outra versão.
+  - `VigenciaRetorno.mudaCalculo(...)` diz se a versão muda o cálculo; a última que mudou é a versão de cálculo.
+  - `RetornoSuperInteligente` e `ValorVigente` ganharam `versao`. `ValoresVigentes.valorDe` recebe a versão de cálculo e devolve vazio para a linha de outra versão.
   - `Requisicao` ganhou `respondidaEm`: o RSUP não traz versão, e é a resposta da PP ao informe que separa os retornos de cada versão.
 - **Lote por tentativa.** O reenvio de um idLote substitui o lote na PP, mas não apaga a tentativa anterior aqui.
   - `LoteEnviado` virou (jti, idLote): horário, status e resourceId já estavam em `Requisicao`.
@@ -89,10 +89,10 @@ pxe-adapter/        → split-core, split-eventos
 - **`JanelaSuperInteligenteAberta` saiu.** A janela é derivada dos informes aceitos (Iniciada, Baixa, pagamento integral); está descrita em `VersaoTransacao`.
 - **Impeditivo Não Contratual só com fatos.** `TransacaoEmAnalise` é a retenção, imutável; em análise é quem ainda não tem `AnaliseConcluida`.
   - Saiu `notificacao`: a notificação enviada é a `Ocorrencia` do mesmo (txKey, numPgto).
-  - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. `prazoNotificacao` recebe o `Pagamento`.
+  - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. `ImpeditivoNaoContratual.prazoNotificacao` recebe o `Pagamento`.
 - **Estorno até o fim (Operações §10.4).** Depois da resposta, mais dois fatos por (idOcor, tributo):
   - `EstornoRecebido`: o valor que a RFB (CBS, via TES) ou o CGIBS (IBS, via STR) devolveu. O crédito traz o `idAprovEst`
-    da resposta como NumCtrlTESOr/NumCtrlSTROr, e `confere` compara com o `vlTribEst` aprovado.
+    da resposta como NumCtrlTESOr/NumCtrlSTROr, e `ConciliacaoEstorno.confere` compara com o `vlTribEst` aprovado.
   - `EstornoDevolvido`: o PSP repassou à parte prejudicada pelo backoffice. Meta 24h, ANS 2 dias úteis, fora do IGA (Tempos §8.1).
   - Recebido sem devolvido = valor da parte prejudicada parado no PSP.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
@@ -106,6 +106,17 @@ pxe-adapter/        → split-core, split-eventos
   - `CalculoSegregacao`: `tetoEmAberto` null = sem EM ABERTO (no lugar de `SEM_TETO`) e `nsuBase` null no Inteligente (no lugar de 0).
   - `FormatoJsonPp.lerCentavos` devolve `Centavos`; o nsuId se lê com `Nsu.ler`.
 - `RegrasInteligente` virou `TriagemInteligente`, que diz o que ela faz.
+- **Regras fora dos records.** Um record de tabela fica com as invariantes do construtor, com o que deriva da própria linha
+  (`tinhaEmAberto`, `cabeEm`, `consumidoNoPrazo`, `tokenValidoEm`) e com os `ler`, `texto` e `de`.
+  As regras ficam em classes `final` só com funções `static`, porque o Java não tem função solta:
+  - regra do manual que só usa valores vai para o split-core, como a `Segregacao`, e qualquer serviço pode usar:
+    - `InformeTransacao.daVersao` (era `VersaoTransacao.informe`);
+    - `VigenciaRetorno.mudaCalculo`, que compara a `EntradaCalculo` (vlInf, CBS/IBS Informado e docFiscal) de duas versões;
+    - `VigenciaRetorno.vence`: versão maior e, nela, o maior NSU;
+  - o que monta ou lê linha de tabela fica em `oracle-service/operacao`:
+    - `ValoresVigentes.dobrar` e `valorDe` (eram de `ValorVigente`);
+    - `ConciliacaoEstorno.confere` (era de `EstornoRecebido`) e `ImpeditivoNaoContratual.prazoNotificacao` (era de `TransacaoEmAnalise`);
+  - `DeclaracaoFiscal.entradaCalculo(valorOriginal)` converte a linha na `EntradaCalculo`.
 
 ## Em aberto nestes arquivos
 

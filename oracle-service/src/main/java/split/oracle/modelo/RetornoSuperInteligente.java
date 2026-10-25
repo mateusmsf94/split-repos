@@ -15,7 +15,7 @@ import split.core.Tributo;
 /**
  * Tabela RETORNO_SUPER_INTELIGENTE. Fato imutável, só insert. Chave: (arranjo, cnpjRaizPspRecDir, nsu).
  * O nsu como chave torna o reprocessamento idempotente.
- * versao: a versão de cálculo a que o retorno se refere (VersaoTransacao.mudaCalculo). O RSUP não a traz: é a mais
+ * versao: a versão de cálculo a que o retorno se refere (VigenciaRetorno.mudaCalculo). O RSUP não a traz: é a mais
  * recente cujo informe a PP já tinha respondido em dtHrDisp (REQUISICAO.respondidaEm) e cujos valor e docFiscal
  * conferem com o vlInf e o docFiscal do retorno.
  * Só PXD e PXA: no Boleto os valores chegam pela Núclea, em VALOR_VIGENTE_BOLETO.
