@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação, remessa e repasse. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação, remessa, repasse e estorno. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -106,6 +106,16 @@ split-service/      → split-core
   - O prazo D+1 é do repasse, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2). As duas remessas do dia entram no mesmo repasse (Operações §6.2).
   - Nos arranjos em que o PSP informa, entram as remessas dele, do mesmo arranjo e do mesmo PSP. No Boleto, os pagamentos que a Núclea informou (`ITEM_REPASSE_BOLETO`).
   - O valor repassado de cada tributo precisa ser o apurado (Tempos §6.1). Origem que chega depois do primeiro repasse é `Invalida`: o repasse saiu a menor.
+- **Máquina do estorno (`split-service/ocorrencia`).** Uma por tributo da Solicitação de Estorno, porque a RFB (CBS) e o CGIBS (IBS) respondem separadamente (Operações §10.4).
+  ```
+  AguardandoResposta → Aprovado     aceita (o valor solicitado) ou aceita parcialmente (menos que ele)
+  AguardandoResposta → NaoAceito    não aceita
+  Aprovado → Recebido               a RFB ou o CGIBS devolveu o aprovado
+  Recebido → Devolvido              o PSP devolveu à parte prejudicada
+  ```
+  - O crédito precisa conferir com o aprovado (`ConciliacaoEstorno.confere`) e a devolução, com o crédito; senão, `Invalida`.
+  - O estorno não muda o pagamento: ele continua `Informado`, e o repasse continua devido (Operações §10.1).
+  - A Notificação de Transação em Análise não tem máquina: não tem resposta. O que ela muda está no pagamento (`EmAnalise`), e o envio dela é do envio.
 - `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
   Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
@@ -194,11 +204,11 @@ split-service/      → split-core
   - em que ordem chegam a baixa (TE4) e a liquidação do Boleto. O marco exige as duas (Operações §6.1), e a `Liquidacao` só sai quando as duas existem.
 - **Repasse de valor zero.** Um dia sem pagamentos tem remessas com totais zero, e o repasse fica com CBS e IBS zero.
   O manual não diz se ainda há TES e STR de valor zero. A máquina espera o repasse dos dois tributos, e aceita zero.
+- **Estorno de um tributo só.** Se a solicitação pede zero num tributo, o manual não diz se o órgão dele responde.
+  A máquina daquele tributo fica esperando, e só uma resposta não aceita a encerra.
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Próximas máquinas**, já conferidas com os manuais:
-  - **Ocorrência**: a Notificação não tem resposta. A Solicitação de Estorno tem uma resposta por tributo (RFB para o CBS, CGIBS para o IBS):
-    aceita, aceita parcialmente ou não aceita. Depois vêm o estorno recebido e o devolvido à parte prejudicada (Operações §10.4).
   - **Envio de informe** (Iniciada, Atualizada, Baixa, Preliminar e MOC): pendente → enviado → aceito ou rejeitado, item a item na resposta 201.
     Com 400 ou 500 nenhum item foi processado, e a requisição inteira volta a pendente (Integração §5.1). O lote da Segregação é aceito ou rejeitado inteiro.
   - A ponte entre as máquinas fica no split-service: a `RemessaFinalizada` move cada pagamento da remessa, e o pagamento liquidado move a transação.
