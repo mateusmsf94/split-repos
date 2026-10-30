@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado; por enquanto só a do pagamento. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado; por enquanto a do pagamento e a da transação. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -73,6 +73,23 @@ split-service/      → split-core
     O estado é a dobra delas a partir de PAGAMENTO (`reconstruir`), sem tabela de estado.
   - `aplicar` não lança exceção: evento que não cabe no estado vira `Transicao.Invalida`. Os switches não têm default,
     e um evento novo não compila até os três estados não finais decidirem o que fazer com ele. Os testes percorrem arranjo × estado × evento inteiro.
+- **Máquina da transação (`split-service/transacao`).** Só PXD e PXA: no Boleto quem informa é a Núclea, e PXE, TED e TEF não têm janela.
+  ```
+  SemSplit → ComSplit | SemSplit      alteração (só PXD)
+  ComSplit → ComSplit | SemSplit      alteração (só PXD)
+  SemSplit | ComSplit → Encerrada     cancelamento ou expiração
+  SemSplit → PagaSemSplit             pagamento
+  ComSplit → PagaComSplit             pagamento
+  ```
+  - Nasce na versão 1 (`Criacao`), com ou sem split. Cada versão nova precisa ser a seguinte, e o pagamento guarda a versão vigente.
+  - Tirar os campos fiscais volta a `SemSplit` sem encerrar: a transação pode recebê-los de novo (Operações, histórico da 1.0.1).
+  - No PXA a CobR não muda: depois da criação só cabem o encerramento e o pagamento (Operações §4.2.1 e §4.4.1).
+    `InformeTransacao.daVersao` aceitava uma alteração no PXA e agora a recusa também.
+  - O Retorno não é evento: corrige o cálculo, e não o estado. O pagamento não gera Baixa, porque o Preliminar ou a Segregação fecham a janela (Tempos §5.6).
+  - O informe de cada versão continua em `InformeTransacao.daVersao` e segue as setas: SemSplit → ComSplit é a Iniciada;
+    ComSplit → ComSplit, a Atualizada; ComSplit → SemSplit ou Encerrada, a Baixa.
+- `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
+  Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
 ## O que mudou em relação ao arquivo único
 
@@ -160,9 +177,6 @@ split-service/      → split-core
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Próximas máquinas**, já conferidas com os manuais:
-  - **Transação** (PXD e PXA; no Boleto, quem acompanha é a Núclea): sem split → janela aberta (Iniciada aceita) → fechada pela Baixa ou pelo pagamento.
-    A Atualizada não fecha a janela, e o Retorno não muda o estado. A remoção dos campos fiscais gera Baixa, mas a transação pode recebê-los de novo (Iniciada nova);
-    cancelamento e expiração encerram. Os fatos já estão em `VersaoTransacao` e `InformeTransacao.daVersao`.
   - **Remessa**: iniciada → lotes, cada um aceito ou reenviado com o mesmo idLote → finalizada. É obrigatória mesmo sem pagamentos (passos 1 e 3). Nunca no Boleto.
   - **Repasse**: um por dia útil, arranjo e tributo (TES para o CBS, STR para o IBS), juntando as duas remessas do dia (Operações §6.2).
     O D+1 é dele, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2).
@@ -193,7 +207,7 @@ Ou um repositório por vez. A `split-lib` vai antes, porque os serviços a receb
 ```
 (cd split-lib && ./mvnw install)
 (cd ted-adapter && ./mvnw package)
-(cd split-service && ./mvnw test)     # a máquina do pagamento tem testes
+(cd split-service && ./mvnw test)     # as máquinas têm testes
 java -jar ted-adapter/target/quarkus-app/quarkus-run.jar
 ```
 

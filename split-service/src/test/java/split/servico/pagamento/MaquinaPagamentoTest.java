@@ -17,6 +17,8 @@ import split.core.Arranjo;
 import split.core.IdInformeSegregacao;
 import split.core.IdRepasse;
 import split.core.Ispb;
+import split.servico.Leis;
+import split.servico.Transicao;
 import split.servico.pagamento.EstadoPagamento.EmAnalise;
 import split.servico.pagamento.EstadoPagamento.EmRemessa;
 import split.servico.pagamento.EstadoPagamento.Informado;
@@ -30,8 +32,8 @@ import split.servico.pagamento.EventoPagamento.IncluidoPelaNuclea;
 import split.servico.pagamento.EventoPagamento.RemessaFinalizada;
 import split.servico.pagamento.EventoPagamento.Retido;
 import split.servico.pagamento.EventoPagamento.RetiradoDaRemessa;
-import split.servico.pagamento.Transicao.Invalida;
-import split.servico.pagamento.Transicao.Ok;
+import split.servico.Transicao.Invalida;
+import split.servico.Transicao.Ok;
 
 class MaquinaPagamentoTest {
 
@@ -48,8 +50,8 @@ class MaquinaPagamentoTest {
         return new IdRepasse(ISPB, ISPB, arranjo, LocalDate.of(2026, 10, 30), 1);
     }
 
-    private static EstadoPagamento estado(Transicao transicao) {
-        return assertInstanceOf(Ok.class, transicao).estado();
+    private static EstadoPagamento estado(Transicao<EstadoPagamento, EventoPagamento> transicao) {
+        return Leis.estado(transicao);
     }
 
     @Test
@@ -121,7 +123,7 @@ class MaquinaPagamentoTest {
         var outra = new RemessaFinalizada(remessa(Arranjo.TED, 2));
         var t = MaquinaPagamento.reconstruir(Arranjo.TED, new Liquidacao(LIQUIDADO_EM),
                 List.of(new IncluidoEmRemessa(r), outra, new RemessaFinalizada(r)));
-        var invalida = assertInstanceOf(Invalida.class, t);
+        var invalida = Leis.invalida(t);
         assertEquals(new EmRemessa(r, new Liquidado(LIQUIDADO_EM, LIQUIDADO_EM)), invalida.estado());
         assertEquals(outra, invalida.evento());
     }
@@ -161,44 +163,29 @@ class MaquinaPagamentoTest {
     @Test
     void aplicarNuncaLancaEAInvalidaDevolveOQueRecebeu() {
         for (Arranjo a : Arranjo.values()) {
-            for (EstadoPagamento s : estados()) {
-                for (EventoPagamento e : eventos()) {
-                    if (MaquinaPagamento.aplicar(a, s, e) instanceof Invalida(var mesmo, var evento)) {
-                        assertEquals(s, mesmo);
-                        assertEquals(e, evento);
-                    }
-                }
-            }
+            Leis.invalidaDevolveOQueRecebeu(estados(), eventos(), (s, e) -> MaquinaPagamento.aplicar(a, s, e));
         }
     }
 
     @Test
     void nenhumEventoSeAplicaDuasVezesSeguidas() {
         for (Arranjo a : Arranjo.values()) {
-            for (EstadoPagamento s : estados()) {
-                for (EventoPagamento e : eventos()) {
-                    if (MaquinaPagamento.aplicar(a, s, e) instanceof Ok(var depois)) {
-                        assertInstanceOf(Invalida.class, MaquinaPagamento.aplicar(a, depois, e), s + " + " + e + " duas vezes");
-                    }
-                }
-            }
+            Leis.nenhumEventoDuasVezes(estados(), eventos(), (s, e) -> MaquinaPagamento.aplicar(a, s, e));
         }
     }
 
     @Test
     void estadosFinaisNaoMudam() {
         for (Arranjo a : Arranjo.values()) {
-            for (EstadoPagamento s : estados()) {
-                boolean fim = switch (s) {
-                    case NaoAceito _, Informado _, InformadoPelaNuclea _ -> true;
-                    case Liquidado _, EmAnalise _, EmRemessa _ -> false;
-                };
-                if (!fim) continue;
-                for (EventoPagamento e : eventos()) {
-                    assertInstanceOf(Invalida.class, MaquinaPagamento.aplicar(a, s, e));
-                }
-            }
+            Leis.finaisNaoMudam(estados(), MaquinaPagamentoTest::fim, eventos(), (s, e) -> MaquinaPagamento.aplicar(a, s, e));
         }
+    }
+
+    private static boolean fim(EstadoPagamento estado) {
+        return switch (estado) {
+            case NaoAceito _, Informado _, InformadoPelaNuclea _ -> true;
+            case Liquidado _, EmAnalise _, EmRemessa _ -> false;
+        };
     }
 
     @Test

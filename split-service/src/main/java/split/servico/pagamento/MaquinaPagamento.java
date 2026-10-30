@@ -3,6 +3,7 @@ package split.servico.pagamento;
 import java.util.List;
 
 import split.core.Arranjo;
+import split.servico.Transicao;
 import split.servico.pagamento.EstadoPagamento.EmAnalise;
 import split.servico.pagamento.EstadoPagamento.EmRemessa;
 import split.servico.pagamento.EstadoPagamento.Informado;
@@ -38,7 +39,7 @@ public final class MaquinaPagamento {
     }
 
     /** arranjo: o do pagamento. Não muda com o estado, por isso não fica nele. */
-    public static Transicao aplicar(Arranjo arranjo, EstadoPagamento estado, EventoPagamento evento) {
+    public static Transicao<EstadoPagamento, EventoPagamento> aplicar(Arranjo arranjo, EstadoPagamento estado, EventoPagamento evento) {
         return switch (estado) {
             case Liquidado liquidado -> switch (evento) {
                 case Retido _ -> ok(new EmAnalise(liquidado.liquidadoEm()));
@@ -67,24 +68,16 @@ public final class MaquinaPagamento {
     }
 
     /** O estado é a dobra dos fatos, a partir da liquidação. Para no primeiro evento que não cabe. */
-    public static Transicao reconstruir(Arranjo arranjo, Liquidacao liquidacao, List<EventoPagamento> eventos) {
-        Transicao atual = ok(iniciar(liquidacao));
-        for (EventoPagamento evento : eventos) {
-            switch (atual) {
-                case Transicao.Ok(var estado) -> atual = aplicar(arranjo, estado, evento);
-                case Transicao.Invalida _ -> {
-                    return atual;
-                }
-            }
-        }
-        return atual;
+    public static Transicao<EstadoPagamento, EventoPagamento> reconstruir(Arranjo arranjo, Liquidacao liquidacao,
+                                                                         List<EventoPagamento> eventos) {
+        return Transicao.dobrar(iniciar(liquidacao), eventos, (estado, evento) -> aplicar(arranjo, estado, evento));
     }
 
-    private static Transicao ok(EstadoPagamento estado) {
-        return new Transicao.Ok(estado);
+    private static Transicao<EstadoPagamento, EventoPagamento> ok(EstadoPagamento estado) {
+        return new Transicao.Ok<>(estado);
     }
 
-    private static Transicao invalida(EstadoPagamento estado, EventoPagamento evento) {
-        return new Transicao.Invalida(estado, evento);
+    private static Transicao<EstadoPagamento, EventoPagamento> invalida(EstadoPagamento estado, EventoPagamento evento) {
+        return new Transicao.Invalida<>(estado, evento);
     }
 }

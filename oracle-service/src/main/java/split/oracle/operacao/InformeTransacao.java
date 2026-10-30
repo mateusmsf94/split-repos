@@ -21,14 +21,15 @@ public final class InformeTransacao {
                                                  boolean anteriorComSplit, boolean comSplit) {
         if (versao.versao() == 1 && anteriorComSplit) throw new IllegalArgumentException("a versão 1 não tem anterior");
         if (!arranjo.superInteligente() || arranjo.viaNuclea()) return Optional.empty();
+        // A CobR do PXA não muda: depois da criação só há o encerramento (Operações §4.2.1 e §4.4.1).
+        if (versao.versao() > 1 && !versao.encerrada() && !arranjo.admiteAtualizacao()) {
+            throw new IllegalArgumentException(arranjo + " não admite alteração: cancela e cria outra transação");
+        }
 
         boolean temSplit = comSplit && !versao.encerrada();
         if (!anteriorComSplit) return temSplit ? Optional.of(TipoInforme.TRANSACAO_INICIADA) : Optional.empty();
         // Encerramento ou remoção dos campos fiscais.
         if (!temSplit) return Optional.of(TipoInforme.BAIXA_EXCETO_PAGAMENTO);
-        if (!arranjo.admiteAtualizacao()) {
-            throw new IllegalArgumentException(arranjo + " não admite atualização: cancela e cria outra transação");
-        }
         return Optional.of(TipoInforme.TRANSACAO_ATUALIZADA);
     }
 }
