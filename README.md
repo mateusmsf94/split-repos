@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação e remessa. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação, remessa e repasse. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -97,6 +97,15 @@ split-service/      → split-core
   - A finalização aceita precisa ter a soma dos lotes vigentes, que é o que a PP confere. Se a soma daqui não bate, é `Invalida`, para alertar.
   - Sem lotes, a remessa vai do passo 1 ao 3 com totais zero: ela é obrigatória mesmo sem pagamentos.
   - Rejeição não é evento: o lote com 422 se corrige e se reenvia, e a finalização com 422 se refaz. `Finalizada` é final, e a PP recusa lote depois dela.
+- **Máquina do repasse (`split-service/repasse`).** Um por dia útil, arranjo e PSP Recebedor Direto, com o mesmo idRepasse para CBS (TES) e IBS (STR).
+  ```
+  Apurando → Apurando      uma remessa finalizada, ou um pagamento de Boleto, entra
+  Apurando → Repassando    o primeiro tributo repassado
+  Repassando → Repassado   o outro tributo repassado
+  ```
+  - O prazo D+1 é do repasse, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2). As duas remessas do dia entram no mesmo repasse (Operações §6.2).
+  - Nos arranjos em que o PSP informa, entram as remessas dele, do mesmo arranjo e do mesmo PSP. No Boleto, os pagamentos que a Núclea informou (`ITEM_REPASSE_BOLETO`).
+  - O valor repassado de cada tributo precisa ser o apurado (Tempos §6.1). Origem que chega depois do primeiro repasse é `Invalida`: o repasse saiu a menor.
 - `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
   Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
@@ -183,11 +192,11 @@ split-service/      → split-core
   - como o PSP sabe em qual Informe de Segregação a Núclea incluiu cada pagamento (`ItemRepasseBoleto`);
   - como o PSP avisa a Núclea de um Impeditivo Não Contratual, para ela tirar o pagamento do informe;
   - em que ordem chegam a baixa (TE4) e a liquidação do Boleto. O marco exige as duas (Operações §6.1), e a `Liquidacao` só sai quando as duas existem.
+- **Repasse de valor zero.** Um dia sem pagamentos tem remessas com totais zero, e o repasse fica com CBS e IBS zero.
+  O manual não diz se ainda há TES e STR de valor zero. A máquina espera o repasse dos dois tributos, e aceita zero.
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Próximas máquinas**, já conferidas com os manuais:
-  - **Repasse**: um por dia útil, arranjo e tributo (TES para o CBS, STR para o IBS), juntando as duas remessas do dia (Operações §6.2).
-    O D+1 é dele, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2).
   - **Ocorrência**: a Notificação não tem resposta. A Solicitação de Estorno tem uma resposta por tributo (RFB para o CBS, CGIBS para o IBS):
     aceita, aceita parcialmente ou não aceita. Depois vêm o estorno recebido e o devolvido à parte prejudicada (Operações §10.4).
   - **Envio de informe** (Iniciada, Atualizada, Baixa, Preliminar e MOC): pendente → enviado → aceito ou rejeitado, item a item na resposta 201.
