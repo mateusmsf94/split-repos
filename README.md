@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado; por enquanto a do pagamento e a da transação. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação e remessa. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -88,6 +88,15 @@ split-service/      → split-core
   - O Retorno não é evento: corrige o cálculo, e não o estado. O pagamento não gera Baixa, porque o Preliminar ou a Segregação fecham a janela (Tempos §5.6).
   - O informe de cada versão continua em `InformeTransacao.daVersao` e segue as setas: SemSplit → ComSplit é a Iniciada;
     ComSplit → ComSplit, a Atualizada; ComSplit → SemSplit ou Encerrada, a Baixa.
+- **Máquina da remessa (`split-service/remessa`).** O Informe de Segregação do próprio PSP, nunca no Boleto (Integração §3.6).
+  ```
+  Iniciada → Iniciada      lote aceito, novo ou reenviado com o mesmo idLote
+  Iniciada → Finalizada    finalização aceita
+  ```
+  - Nasce no passo 1 aceito. `Iniciada` guarda os totais do lote vigente de cada idLote: o reenvio aceito (200) substitui o anterior.
+  - A finalização aceita precisa ter a soma dos lotes vigentes, que é o que a PP confere. Se a soma daqui não bate, é `Invalida`, para alertar.
+  - Sem lotes, a remessa vai do passo 1 ao 3 com totais zero: ela é obrigatória mesmo sem pagamentos.
+  - Rejeição não é evento: o lote com 422 se corrige e se reenvia, e a finalização com 422 se refaz. `Finalizada` é final, e a PP recusa lote depois dela.
 - `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
   Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
@@ -177,7 +186,6 @@ split-service/      → split-core
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Próximas máquinas**, já conferidas com os manuais:
-  - **Remessa**: iniciada → lotes, cada um aceito ou reenviado com o mesmo idLote → finalizada. É obrigatória mesmo sem pagamentos (passos 1 e 3). Nunca no Boleto.
   - **Repasse**: um por dia útil, arranjo e tributo (TES para o CBS, STR para o IBS), juntando as duas remessas do dia (Operações §6.2).
     O D+1 é dele, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2).
   - **Ocorrência**: a Notificação não tem resposta. A Solicitação de Estorno tem uma resposta por tributo (RFB para o CBS, CGIBS para o IBS):
