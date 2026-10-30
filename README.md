@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado: por enquanto pagamento, transação, remessa, repasse e estorno. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado: pagamento, transação, remessa, repasse, estorno e envio. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -116,6 +116,15 @@ split-service/      → split-core
   - O crédito precisa conferir com o aprovado (`ConciliacaoEstorno.confere`) e a devolução, com o crédito; senão, `Invalida`.
   - O estorno não muda o pagamento: ele continua `Informado`, e o repasse continua devido (Operações §10.1).
   - A Notificação de Transação em Análise não tem máquina: não tem resposta. O que ela muda está no pagamento (`EmAnalise`), e o envio dela é do envio.
+- **Máquina do envio (`split-service/envio`).** Um item de PENDENCIA_ENVIO: Iniciada, Atualizada, Baixa, Preliminar, lote da Segregação ou MOC (Integração §5.1).
+  ```
+  Pendente → Enviado               o item foi numa requisição
+  Enviado → Aceito | Rejeitado     resposta 201 item a item (200 no reenvio do lote; 422 rejeita todos)
+  Enviado → Pendente               400 ou 500: nada foi processado
+  Rejeitado → Enviado              corrigido, numa requisição nova
+  ```
+  - Só a resposta da requisição em que o item está o move: a de outro jti é `Invalida`. Repetir o mesmo comando mantém o jti (`REQUISICAO.idComando`).
+  - `Aceito` é final: reenviar item aceito é erro e pesa no IGA. Início e finalização da remessa não são item; são da máquina da remessa.
 - `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
   Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
@@ -208,11 +217,9 @@ split-service/      → split-core
   A máquina daquele tributo fica esperando, e só uma resposta não aceita a encerra.
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
-- **Próximas máquinas**, já conferidas com os manuais:
-  - **Envio de informe** (Iniciada, Atualizada, Baixa, Preliminar e MOC): pendente → enviado → aceito ou rejeitado, item a item na resposta 201.
-    Com 400 ou 500 nenhum item foi processado, e a requisição inteira volta a pendente (Integração §5.1). O lote da Segregação é aceito ou rejeitado inteiro.
-  - A ponte entre as máquinas fica no split-service: a `RemessaFinalizada` move cada pagamento da remessa, e o pagamento liquidado move a transação.
 - **Ainda não existem:**
+  - a ponte entre as máquinas, no split-service: a remessa finalizada move cada pagamento dela e entra no repasse,
+    e o pagamento liquidado move a transação. Precisa dos itens de cada lote, que estão no oracle-service;
   - o consumo do Kafka e as chamadas do split-service ao oracle-service;
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;
