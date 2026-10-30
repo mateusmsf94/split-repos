@@ -17,5 +17,6 @@
         <module>ted-adapter</module>
         <module>tef-adapter</module>
         <module>pxe-adapter</module>
+        <module>split-service</module>
     </modules>
 </project>

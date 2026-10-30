@@ -14,11 +14,12 @@ pp-adapter/         → split-core
 ted-adapter/        → split-core, split-eventos
 tef-adapter/        → split-core, split-eventos
 pxe-adapter/        → split-core, split-eventos
+split-service/      → split-core
 ```
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** ainda não recebe nada: as regras de negócio dele entram numa próxima etapa.
+- O **split-service** roda as máquinas de estado; por enquanto só a do pagamento. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde foi parar cada tipo do arquivo único
@@ -52,6 +53,26 @@ pxe-adapter/        → split-core, split-eventos
 - `oracle-service/modelo/MensagemOutbox`: a tabela OUTBOX.
 - `oracle-service/operacao/RegistroPagamentoRecebido`: o `POST /pagamentos-recebidos`, que transforma o evento nas linhas gravadas numa transação só.
 - `TradutorTed`, `TradutorTef`, `TradutorPxe`: um por adapter.
+- **Máquina do pagamento (`split-service/pagamento`).** Uma só para os seis arranjos: funções puras em `MaquinaPagamento`,
+  sobre `EstadoPagamento` e `EventoPagamento`.
+  ```
+  Liquidado → EmRemessa → Informado              PXD, PXA, PXE, TED, TEF
+  Liquidado → InformadoPelaNuclea                Boleto
+  Liquidado → EmAnalise → Liquidado | NaoAceito  Impeditivo Não Contratual
+  EmRemessa → Liquidado                          lote reenviado sem o pagamento
+  ```
+  - Mora no split-service, e não na lib, porque só ele roda a máquina.
+  - Todo pagamento nasce `Liquidado`, na Liquidação Interbancária ou Intrabancária (TE2). Não há estado antes:
+    pacs.002 rejeitada não é pagamento, e o Pix intrabancário nem tem pacs.008. No Boleto, o fato exige também a baixa que a Núclea envia (Operações §6.1).
+  - A Liquidação Financeira é a liquidação sem Impeditivo Não Contratual. O crédito ao Recebedor (TF1) não é evento,
+    porque o impeditivo contratual não a adia (Operações §6.1). Se o pagamento foi retido e aceito, ela passa a ser a conclusão da análise (`Liquidado.liquidacaoFinanceiraEm`).
+  - A remessa não é rejeitada inteira: o lote com 422 se reenvia com o mesmo idLote, e a finalização com 422 se refaz (Integração §3.6).
+    Só o reenvio que tira o pagamento do lote o devolve a `Liquidado`.
+  - `Informado` é final. Estorno não é estado do pagamento: a resposta é por tributo, pode ser parcial e não dispensa o repasse (Operações §10.1 e §10.4).
+  - Cada evento é uma linha que o oracle-service já grava (TRANSACAO_EM_ANALISE, ANALISE_CONCLUIDA, LOTE_ENVIADO, REMESSA_FINALIZADA, ITEM_REPASSE_BOLETO).
+    O estado é a dobra delas a partir de PAGAMENTO (`reconstruir`), sem tabela de estado.
+  - `aplicar` não lança exceção: evento que não cabe no estado vira `Transicao.Invalida`. Os switches não têm default,
+    e um evento novo não compila até os três estados não finais decidirem o que fazer com ele. Os testes percorrem arranjo × estado × evento inteiro.
 
 ## O que mudou em relação ao arquivo único
 
@@ -134,10 +155,24 @@ pxe-adapter/        → split-core, split-eventos
   - O pxe-adapter só recebe Pix Estático (DICT, MANU, QRES, APES). QRDN, APDN ou AUTO chegando nele é erro de roteamento e lança exceção.
 - **Interface com a Núclea no Boleto.** Os manuais da PP não a descrevem. Falta confirmar, porque decide quanto o PSP repassa:
   - como o PSP sabe em qual Informe de Segregação a Núclea incluiu cada pagamento (`ItemRepasseBoleto`);
-  - como o PSP avisa a Núclea de um Impeditivo Não Contratual, para ela tirar o pagamento do informe.
+  - como o PSP avisa a Núclea de um Impeditivo Não Contratual, para ela tirar o pagamento do informe;
+  - em que ordem chegam a baixa (TE4) e a liquidação do Boleto. O marco exige as duas (Operações §6.1), e a `Liquidacao` só sai quando as duas existem.
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
+- **Próximas máquinas**, já conferidas com os manuais:
+  - **Transação** (PXD e PXA; no Boleto, quem acompanha é a Núclea): sem split → janela aberta (Iniciada aceita) → fechada pela Baixa ou pelo pagamento.
+    A Atualizada não fecha a janela, e o Retorno não muda o estado. A remoção dos campos fiscais gera Baixa, mas a transação pode recebê-los de novo (Iniciada nova);
+    cancelamento e expiração encerram. Os fatos já estão em `VersaoTransacao` e `InformeTransacao.daVersao`.
+  - **Remessa**: iniciada → lotes, cada um aceito ou reenviado com o mesmo idLote → finalizada. É obrigatória mesmo sem pagamentos (passos 1 e 3). Nunca no Boleto.
+  - **Repasse**: um por dia útil, arranjo e tributo (TES para o CBS, STR para o IBS), juntando as duas remessas do dia (Operações §6.2).
+    O D+1 é dele, e não da remessa: meta às 09:00 e ANS às 12:00 (Tempos §6.2).
+  - **Ocorrência**: a Notificação não tem resposta. A Solicitação de Estorno tem uma resposta por tributo (RFB para o CBS, CGIBS para o IBS):
+    aceita, aceita parcialmente ou não aceita. Depois vêm o estorno recebido e o devolvido à parte prejudicada (Operações §10.4).
+  - **Envio de informe** (Iniciada, Atualizada, Baixa, Preliminar e MOC): pendente → enviado → aceito ou rejeitado, item a item na resposta 201.
+    Com 400 ou 500 nenhum item foi processado, e a requisição inteira volta a pendente (Integração §5.1). O lote da Segregação é aceito ou rejeitado inteiro.
+  - A ponte entre as máquinas fica no split-service: a `RemessaFinalizada` move cada pagamento da remessa, e o pagamento liquidado move a transação.
 - **Ainda não existem:**
+  - o consumo do Kafka e as chamadas do split-service ao oracle-service;
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;
   - o relay da OUTBOX.
@@ -158,6 +193,7 @@ Ou um repositório por vez. A `split-lib` vai antes, porque os serviços a receb
 ```
 (cd split-lib && ./mvnw install)
 (cd ted-adapter && ./mvnw package)
+(cd split-service && ./mvnw test)     # a máquina do pagamento tem testes
 java -jar ted-adapter/target/quarkus-app/quarkus-run.jar
 ```
 
