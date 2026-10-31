@@ -1,5 +1,6 @@
 package split.servico.remessa;
 
+import java.util.List;
 import java.util.Objects;
 
 import split.core.IdInformeSegregacao;
@@ -14,12 +15,13 @@ public sealed interface EventoRemessa {
 
     /**
      * A PP aceitou uma tentativa do lote: 201 no primeiro envio, 200 no reenvio, que substitui o lote anterior.
-     * LOTE_ENVIADO, REQUISICAO e a soma dos ITEM_LOTE da tentativa. O lote tem de 1 a n transações.
+     * LOTE_ENVIADO, REQUISICAO e os ITEM_ENVIADO e ITEM_LOTE da tentativa. O lote tem de 1 a n transações.
      */
-    record LoteAceito(IdLote lote, Totais totais) implements EventoRemessa {
+    record LoteAceito(IdLote lote, List<ItemLote> itens) implements EventoRemessa {
         public LoteAceito {
             Objects.requireNonNull(lote, "idLote");
-            if (totais.transacoes() < 1) throw new IllegalArgumentException("o lote tem ao menos uma transação");
+            itens = List.copyOf(itens);
+            if (itens.isEmpty()) throw new IllegalArgumentException("o lote tem ao menos uma transação");
         }
     }
 

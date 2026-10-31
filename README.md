@@ -19,7 +19,7 @@ split-service/      → split-core
 
 - Nenhum serviço depende de outro serviço. A conversa entre eles é por REST e Kafka, usando os records do split-eventos.
 - Os records de tabela são privados do oracle-service, porque ele é a única porta para o banco.
-- O **split-service** roda as máquinas de estado: pagamento, transação, remessa, repasse, estorno e envio. Ainda não consome o Kafka nem chama o oracle-service.
+- O **split-service** roda as máquinas de estado (pagamento, transação, remessa, repasse, estorno e envio) e a ponte entre elas. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
 ## Onde mora cada regra
@@ -125,7 +125,11 @@ STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay─
   Iniciada → Iniciada      lote aceito, novo ou reenviado com o mesmo idLote
   Iniciada → Finalizada    finalização aceita
   ```
-  - Nasce no passo 1 aceito. `Iniciada` guarda os totais do lote vigente de cada idLote: o reenvio aceito (200) substitui o anterior.
+  - Nasce no passo 1 aceito, já com o repasse em que vai entrar (`REMESSA_INICIADA.repasse`), do mesmo arranjo e PSP.
+  - `Iniciada` guarda os itens do lote vigente de cada idLote: o pagamento (`ITEM_ENVIADO`) e os segregados (`ITEM_LOTE`).
+    O reenvio aceito (200) substitui o anterior, e os totais saem dos itens.
+  - Cada pagamento entra uma vez só na remessa. A PP não recusa o repetido (Integração §3.6.2), mas ele contaria duas vezes
+    no repasse: é `Invalida`, para alertar. Mudar um pagamento de lote é reenviar o lote sem ele e depois o outro com ele.
   - A finalização aceita precisa ter a soma dos lotes vigentes, que é o que a PP confere. Se a soma daqui não bate, é `Invalida`, para alertar.
   - Sem lotes, a remessa vai do passo 1 ao 3 com totais zero: ela é obrigatória mesmo sem pagamentos.
   - Rejeição não é evento: o lote com 422 se corrige e se reenvia, e a finalização com 422 se refaz. `Finalizada` é final, e a PP recusa lote depois dela.
@@ -157,6 +161,28 @@ STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay─
   ```
   - Só a resposta da requisição em que o item está o move: a de outro jti é `Invalida`. Repetir o mesmo comando mantém o jti (`REQUISICAO.idComando`).
   - `Aceito` é final: reenviar item aceito é erro e pesa no IGA. Início e finalização da remessa não são item; são da máquina da remessa.
+- **Ponte entre as máquinas (`split-service/ponte`).** O que cada passo de uma máquina causa nas outras, devolvido como `Efeito`:
+  a decisão como dado. A ponte não aplica nem grava nada.
+  ```
+  criação com split (PXD, PXA)                  envio da Iniciada
+  transação: versão nova                        envio da Iniciada, Atualizada ou Baixa (InformeTransacao)
+  transação: ComSplit → PagaComSplit            envio do Preliminar
+  liquidação no PXD e no PXA                    transação: Paga
+  liquidação no PXE e na TED                    envio do Preliminar
+  pagamento: Liquidado → EmAnalise              envio da Notificação de Transação em Análise
+  pagamento: Liquidado → InformadoPelaNuclea    repasse: o pagamento de Boleto entra
+  remessa: lote aceito                          pagamento: IncluidoEmRemessa ou RetiradoDaRemessa
+  remessa: finalização aceita                   pagamento: RemessaFinalizada; repasse: a remessa entra
+  envio da Solicitação de Estorno: aceito       estorno: um por tributo
+  ```
+  - Cada função recebe um passo: o estado em que o evento foi aplicado e a `Transicao` que `aplicar` devolveu. `Invalida` não propaga nada.
+  - `ParaPagamento`, `ParaTransacao` e `ParaRepasse` levam o mesmo fato, já gravado, visto pela outra máquina; se lá ele não couber, é alerta.
+    `NovoEnvio` é o único que pede linha nova (`PENDENCIA_ENVIO`). `NovoEstorno` abre a máquina de um tributo.
+  - No PXD e no PXA é a transação que diz se o pagamento tem split, e o Preliminar sai do passo dela, com a versão vigente.
+    No PXE e na TED a triagem já decidiu. A Notificação sai assim que o pagamento é retido (Operações §9.1); o prazo é `EmAnalise.prazoNotificacao`.
+  - O lote aceito compara os pagamentos da remessa antes e depois: entra quem é novo, sai quem o reenvio tirou. O lote reenviado igual não causa nada.
+  - Os testes aplicam os efeitos em memória, em cascata, como o split-service fará, e exigem que todos caibam.
+    Um deles percorre toda sequência de três lotes e confere que está `EmRemessa` exatamente quem está nos lotes vigentes.
 - `split-service/Transicao` é o resultado de toda máquina (`Ok` ou `Invalida`), e `Transicao.dobrar` faz o `reconstruir` de todas.
   Os testes das máquinas checam as mesmas leis (`Leis`): a `Invalida` devolve o que recebeu, o repetido não se aplica, o final não muda.
 
@@ -246,13 +272,15 @@ STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay─
   - em que ordem chegam a baixa (TE4) e a liquidação do Boleto. O marco exige as duas (Operações §6.1), e a `Liquidacao` só sai quando as duas existem.
 - **Repasse de valor zero.** Um dia sem pagamentos tem remessas com totais zero, e o repasse fica com CBS e IBS zero.
   O manual não diz se ainda há TES e STR de valor zero. A máquina espera o repasse dos dois tributos, e aceita zero.
+- **Preliminar no TEF.** É opcional (Tempos §2.2.6), e a ponte não o pede. Para enviá-lo, é um `case` em `Ponte.daLiquidacao`.
 - **Estorno de um tributo só.** Se a solicitação pede zero num tributo, o manual não diz se o órgão dele responde.
   A máquina daquele tributo fica esperando, e só uma resposta não aceita a encerra.
 - **Versão do retorno em trânsito.** Um retorno disponibilizado entre o envio de uma Atualizada e a resposta da PP
   conta como da versão anterior. Se a Atualizada só mudou CBS/IBS Informado, o vlInf e o docFiscal não desempatam. Falta confirmar com a PP.
 - **Ainda não existem:**
-  - a ponte entre as máquinas, no split-service: a remessa finalizada move cada pagamento dela e entra no repasse,
-    e o pagamento liquidado move a transação. Precisa dos itens de cada lote, que estão no oracle-service;
+  - quem aplica os efeitos da ponte no split-service: ler os fatos da instância no oracle-service, aplicar e pedir a `PENDENCIA_ENVIO`;
+  - a montagem da remessa no horário de corte: quais pagamentos `Liquidado` entram e em que lote. Ela cria as pendências do lote,
+    e por isso o lote não sai da ponte;
   - o consumo do Kafka e as chamadas do split-service ao oracle-service;
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;

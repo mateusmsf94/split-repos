@@ -1,5 +1,6 @@
 package split.servico.remessa;
 
+import java.util.Collection;
 import java.util.Objects;
 
 import split.core.Centavos;
@@ -13,6 +14,11 @@ public record Totais(long transacoes, Centavos cbs, Centavos ibs) {
         if (transacoes < 0) throw new IllegalArgumentException("total de transações negativo");
         Objects.requireNonNull(cbs, "vlTotalCbs");
         Objects.requireNonNull(ibs, "vlTotalIbs");
+    }
+
+    /** Um por item, com a soma dos segregados: é o que a PP soma dos lotes vigentes. */
+    public static Totais de(Collection<ItemLote> itens) {
+        return itens.stream().map(item -> new Totais(1, item.cbs(), item.ibs())).reduce(ZERO, Totais::mais);
     }
 
     public Totais mais(Totais outro) {

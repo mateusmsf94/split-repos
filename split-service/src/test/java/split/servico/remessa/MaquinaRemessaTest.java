@@ -16,7 +16,9 @@ import split.core.Arranjo;
 import split.core.Centavos;
 import split.core.IdInformeSegregacao;
 import split.core.IdLote;
+import split.core.IdRepasse;
 import split.core.Ispb;
+import split.servico.ChavePagamento;
 import split.servico.Leis;
 import split.servico.Transicao;
 import split.servico.Transicao.Invalida;
@@ -31,11 +33,19 @@ class MaquinaRemessaTest {
     private static final Ispb ISPB = new Ispb("12345678");
     private static final IdInformeSegregacao REMESSA = remessa(1);
     private static final IdInformeSegregacao OUTRA = remessa(2);
-    private static final Totais UM = totais(1, 100, 50);
-    private static final Totais DOIS = totais(2, 300, 150);
+    private static final IdRepasse REPASSE = new IdRepasse(ISPB, ISPB, Arranjo.TED, LocalDate.of(2026, 10, 31), 1);
+    private static final ItemLote P1 = item(1, 100, 50);
+    private static final ItemLote P2 = item(2, 200, 100);
+    private static final ItemLote P3 = item(3, 100, 50);
+    private static final List<ItemLote> UM = List.of(P1);
+    private static final List<ItemLote> DOIS = List.of(P2, P3);
 
     private static IdInformeSegregacao remessa(int sequencial) {
         return new IdInformeSegregacao(ISPB, ISPB, Arranjo.TED, LocalDate.of(2026, 10, 30), LocalTime.of(12, 30), sequencial);
+    }
+
+    private static ItemLote item(long txKey, long cbs, long ibs) {
+        return new ItemLote(new ChavePagamento(txKey, 1), new Centavos(cbs), new Centavos(ibs));
     }
 
     private static Totais totais(long transacoes, long cbs, long ibs) {
@@ -48,36 +58,54 @@ class MaquinaRemessaTest {
 
     @Test
     void doisLotesEAFinalizacaoComASomaDeles() {
-        var t = MaquinaRemessa.reconstruir(REMESSA, List.of(new LoteAceito(new IdLote(REMESSA, 1), UM),
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE, List.of(new LoteAceito(new IdLote(REMESSA, 1), UM),
                 new LoteAceito(new IdLote(REMESSA, 2), DOIS), new FinalizacaoAceita(REMESSA, totais(3, 400, 200))));
-        assertEquals(new Finalizada(REMESSA, totais(3, 400, 200)), estado(t));
+        assertEquals(new Finalizada(REMESSA, REPASSE, totais(3, 400, 200)), estado(t));
     }
 
     @Test
     void remessaSemTransacoesSoTemInicioEFinalizacao() {
-        var t = MaquinaRemessa.reconstruir(REMESSA, List.of(new FinalizacaoAceita(REMESSA, Totais.ZERO)));
-        assertEquals(new Finalizada(REMESSA, Totais.ZERO), estado(t));
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE, List.of(new FinalizacaoAceita(REMESSA, Totais.ZERO)));
+        assertEquals(new Finalizada(REMESSA, REPASSE, Totais.ZERO), estado(t));
     }
 
     @Test
     void reenvioDoMesmoIdLoteSubstituiOAnterior() {
         var lote = new IdLote(REMESSA, 1);
-        var t = MaquinaRemessa.reconstruir(REMESSA, List.of(new LoteAceito(lote, DOIS), new LoteAceito(lote, UM)));
-        assertEquals(new Iniciada(REMESSA, Map.of(lote, UM)), estado(t));
-        assertEquals(UM, assertInstanceOf(Iniciada.class, estado(t)).totais());
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE, List.of(new LoteAceito(lote, DOIS), new LoteAceito(lote, UM)));
+        assertEquals(new Iniciada(REMESSA, REPASSE, Map.of(lote, UM)), estado(t));
+        assertEquals(totais(1, 100, 50), assertInstanceOf(Iniciada.class, estado(t)).totais());
     }
 
     @Test
     void finalizacaoQueNaoBateComOsLotesVigentesNaoCabe() {
         var lote = new IdLote(REMESSA, 1);
-        var t = MaquinaRemessa.reconstruir(REMESSA, List.of(new LoteAceito(lote, DOIS), new LoteAceito(lote, UM),
-                new FinalizacaoAceita(REMESSA, DOIS)));
-        assertEquals(new Iniciada(REMESSA, Map.of(lote, UM)), Leis.invalida(t).estado());
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE, List.of(new LoteAceito(lote, DOIS), new LoteAceito(lote, UM),
+                new FinalizacaoAceita(REMESSA, Totais.de(DOIS))));
+        assertEquals(new Iniciada(REMESSA, REPASSE, Map.of(lote, UM)), Leis.invalida(t).estado());
+    }
+
+    @Test
+    void pagamentoEmDoisLotesNaoCabe() {
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE,
+                List.of(new LoteAceito(new IdLote(REMESSA, 1), UM), new LoteAceito(new IdLote(REMESSA, 2), List.of(P1))));
+        assertEquals(new Iniciada(REMESSA, REPASSE, Map.of(new IdLote(REMESSA, 1), UM)), Leis.invalida(t).estado());
+        assertInstanceOf(Invalida.class,
+                MaquinaRemessa.aplicar(MaquinaRemessa.iniciar(REMESSA, REPASSE), new LoteAceito(new IdLote(REMESSA, 1), List.of(P1, P1))));
+    }
+
+    @Test
+    void pagamentoMudaDeLotePeloReenvio() {
+        var um = new IdLote(REMESSA, 1);
+        var dois = new IdLote(REMESSA, 2);
+        var t = MaquinaRemessa.reconstruir(REMESSA, REPASSE,
+                List.of(new LoteAceito(um, List.of(P1, P2)), new LoteAceito(um, UM), new LoteAceito(dois, List.of(P2))));
+        assertEquals(new Iniciada(REMESSA, REPASSE, Map.of(um, UM, dois, List.of(P2))), estado(t));
     }
 
     @Test
     void loteEFinalizacaoDeOutraRemessaNaoCabem() {
-        var iniciada = MaquinaRemessa.iniciar(REMESSA);
+        var iniciada = MaquinaRemessa.iniciar(REMESSA, REPASSE);
         assertInstanceOf(Invalida.class, MaquinaRemessa.aplicar(iniciada, new LoteAceito(new IdLote(OUTRA, 1), UM)));
         assertInstanceOf(Invalida.class, MaquinaRemessa.aplicar(iniciada, new FinalizacaoAceita(OUTRA, Totais.ZERO)));
     }
@@ -85,12 +113,21 @@ class MaquinaRemessaTest {
     @Test
     void boletoNaoTemRemessaDoPsp() {
         var boleto = new IdInformeSegregacao(ISPB, ISPB, Arranjo.BOL, LocalDate.of(2026, 10, 30), LocalTime.of(8, 20), 1);
-        assertThrows(IllegalArgumentException.class, () -> MaquinaRemessa.iniciar(boleto));
+        var repasse = new IdRepasse(ISPB, ISPB, Arranjo.BOL, LocalDate.of(2026, 10, 31), 1);
+        assertThrows(IllegalArgumentException.class, () -> MaquinaRemessa.iniciar(boleto, repasse));
+    }
+
+    @Test
+    void repasseEDoArranjoEDoPspDaRemessa() {
+        var pxe = new IdRepasse(ISPB, ISPB, Arranjo.PXE, LocalDate.of(2026, 10, 31), 1);
+        var outroPsp = new IdRepasse(new Ispb("87654321"), ISPB, Arranjo.TED, LocalDate.of(2026, 10, 31), 1);
+        assertThrows(IllegalArgumentException.class, () -> MaquinaRemessa.iniciar(REMESSA, pxe));
+        assertThrows(IllegalArgumentException.class, () -> MaquinaRemessa.iniciar(REMESSA, outroPsp));
     }
 
     @Test
     void loteSemTransacoesNaoExiste() {
-        assertThrows(IllegalArgumentException.class, () -> new LoteAceito(new IdLote(REMESSA, 1), Totais.ZERO));
+        assertThrows(IllegalArgumentException.class, () -> new LoteAceito(new IdLote(REMESSA, 1), List.of()));
     }
 
     // Leis para todo estado e evento.
@@ -98,10 +135,10 @@ class MaquinaRemessaTest {
     private static List<EstadoRemessa> estados() {
         var lista = new ArrayList<EstadoRemessa>();
         for (IdInformeSegregacao r : List.of(REMESSA, OUTRA)) {
-            lista.add(new Iniciada(r, Map.of()));
-            lista.add(new Iniciada(r, Map.of(new IdLote(r, 1), UM)));
-            lista.add(new Iniciada(r, Map.of(new IdLote(r, 1), UM, new IdLote(r, 2), DOIS)));
-            lista.add(new Finalizada(r, UM));
+            lista.add(new Iniciada(r, REPASSE, Map.of()));
+            lista.add(new Iniciada(r, REPASSE, Map.of(new IdLote(r, 1), UM)));
+            lista.add(new Iniciada(r, REPASSE, Map.of(new IdLote(r, 1), UM, new IdLote(r, 2), DOIS)));
+            lista.add(new Finalizada(r, REPASSE, Totais.de(UM)));
         }
         return lista;
     }
@@ -110,8 +147,9 @@ class MaquinaRemessaTest {
         var lista = new ArrayList<EventoRemessa>();
         for (IdInformeSegregacao r : List.of(REMESSA, OUTRA)) {
             for (int sequencial : new int[] {1, 2}) {
-                lista.add(new LoteAceito(new IdLote(r, sequencial), UM));
-                lista.add(new LoteAceito(new IdLote(r, sequencial), DOIS));
+                for (List<ItemLote> itens : List.of(UM, DOIS, List.of(P1, P2), List.of(P3, P3))) {
+                    lista.add(new LoteAceito(new IdLote(r, sequencial), itens));
+                }
             }
         }
         return lista;
@@ -120,7 +158,7 @@ class MaquinaRemessaTest {
     private static List<EventoRemessa> finalizacoes() {
         var lista = new ArrayList<EventoRemessa>();
         for (IdInformeSegregacao r : List.of(REMESSA, OUTRA)) {
-            for (Totais t : List.of(Totais.ZERO, UM, DOIS, totais(3, 400, 200))) {
+            for (Totais t : List.of(Totais.ZERO, Totais.de(UM), Totais.de(DOIS), totais(3, 400, 200))) {
                 lista.add(new FinalizacaoAceita(r, t));
             }
         }
@@ -171,10 +209,23 @@ class MaquinaRemessaTest {
     void finalizadaTemOsTotaisDosLotesVigentes() {
         for (EstadoRemessa s : estados()) {
             for (EventoRemessa e : finalizacoes()) {
-                if (MaquinaRemessa.aplicar(s, e) instanceof Ok(Finalizada(var id, var totais))) {
+                if (MaquinaRemessa.aplicar(s, e) instanceof Ok(Finalizada(var id, var repasse, var totais))) {
                     var iniciada = assertInstanceOf(Iniciada.class, s);
                     assertEquals(iniciada.id(), id);
+                    assertEquals(iniciada.repasse(), repasse);
                     assertEquals(iniciada.totais(), totais);
+                }
+            }
+        }
+    }
+
+    @Test
+    void nenhumPagamentoDuasVezesNaRemessa() {
+        for (EstadoRemessa s : estados()) {
+            for (EventoRemessa e : lotes()) {
+                if (MaquinaRemessa.aplicar(s, e) instanceof Ok(Iniciada depois)) {
+                    var pagamentos = depois.itens().stream().map(ItemLote::pagamento).toList();
+                    assertEquals(pagamentos.size(), pagamentos.stream().distinct().count(), s + " + " + e);
                 }
             }
         }

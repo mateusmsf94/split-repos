@@ -110,16 +110,6 @@ class MaquinaTransacaoTest {
         };
     }
 
-    private static int versao(EstadoTransacao estado) {
-        return switch (estado) {
-            case SemSplit(var v) -> v;
-            case ComSplit(var v) -> v;
-            case Encerrada(var v) -> v;
-            case PagaComSplit(var v) -> v;
-            case PagaSemSplit(var v) -> v;
-        };
-    }
-
     @Test
     void aplicarNuncaLancaEAInvalidaDevolveOQueRecebeu() {
         for (Arranjo a : Arranjo.values()) {
@@ -148,10 +138,10 @@ class MaquinaTransacaoTest {
                 for (EventoTransacao e : eventos()) {
                     if (MaquinaTransacao.aplicar(a, s, e) instanceof Ok(var depois)) {
                         int esperada = switch (e) {
-                            case VersaoComSplit _, VersaoSemSplit _, VersaoEncerrada _ -> versao(s) + 1;
-                            case Paga _ -> versao(s);
+                            case VersaoComSplit _, VersaoSemSplit _, VersaoEncerrada _ -> s.versao() + 1;
+                            case Paga _ -> s.versao();
                         };
-                        assertEquals(esperada, versao(depois), s + " + " + e);
+                        assertEquals(esperada, depois.versao(), s + " + " + e);
                     }
                 }
             }

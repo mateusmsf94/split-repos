@@ -7,6 +7,8 @@ package split.servico.transacao;
  */
 public sealed interface EstadoTransacao {
 
+    int versao();
+
     /** Sem campos fiscais: sem split, nada vai à PP. Uma alteração ainda pode preenchê-los (Operações §4.2.1). */
     record SemSplit(int versao) implements EstadoTransacao {
         public SemSplit {
