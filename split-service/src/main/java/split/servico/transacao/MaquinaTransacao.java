@@ -23,7 +23,7 @@ import split.servico.transacao.EventoTransacao.VersaoSemSplit;
  *   SemSplit → PagaSemSplit              pagamento sem split
  *   ComSplit → PagaComSplit              pagamento com split
  *
- * O informe que cada versão gera é InformeTransacao.daVersao, no oracle-service, e segue estas setas:
+ * O informe que cada passo gera é InformeTransacao.daTransicao, e segue estas setas:
  * SemSplit → ComSplit é a Iniciada; ComSplit → ComSplit, a Atualizada; ComSplit → SemSplit ou Encerrada, a Baixa.
  * O pagamento não gera Baixa: o Preliminar ou a Segregação fecham a janela (Tempos §5.6).
  * Os switches não têm default: um estado ou evento novo não compila até alguém decidir cada par.

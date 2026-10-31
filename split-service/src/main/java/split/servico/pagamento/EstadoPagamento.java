@@ -1,5 +1,6 @@
 package split.servico.pagamento;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -30,11 +31,22 @@ public sealed interface EstadoPagamento {
 
     /**
      * Retido por Impeditivo Não Contratual: a Liquidação Financeira fica adiada, e o pagamento, fora do
-     * Informe de Segregação (Operações §9.1). O prazo da Notificação de Transação em Análise conta de liquidadoEm (Tempos §8.1).
+     * Informe de Segregação (Operações §9.1). A Notificação de Transação em Análise sai assim que o impeditivo é
+     * identificado, e o prazo dela conta de liquidadoEm, não da retenção (Tempos §8.1).
      */
     record EmAnalise(Instant liquidadoEm) implements EstadoPagamento {
+
+        /** Envio da Notificação à PP: meta 3 horas e ANS 24 horas após a liquidação. Compõe o IGA (indicador 13). */
+        public static final Duration META_NOTIFICACAO = Duration.ofHours(3);
+        public static final Duration ANS_NOTIFICACAO = Duration.ofHours(24);
+
         public EmAnalise {
             Objects.requireNonNull(liquidadoEm, "liquidadoEm");
+        }
+
+        /** Até quando a Notificação precisa chegar à PP. */
+        public Instant prazoNotificacao() {
+            return liquidadoEm.plus(ANS_NOTIFICACAO);
         }
     }
 

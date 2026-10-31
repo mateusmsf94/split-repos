@@ -9,7 +9,7 @@ import split.core.Validacoes;
 /**
  * Tabela DECLARACAO_FISCAL. Chave: (txKey, versao), a mesma de VERSAO_TRANSACAO.
  * A linha existir = naquela versão a transação tem split. O informe que cada versão gera
- * (Iniciada, Atualizada ou Baixa) sai de InformeTransacao.daVersao.
+ * (Iniciada, Atualizada ou Baixa) é decisão do split-service (InformeTransacao).
  * documentoFiscal: null = não informado (só possível no Super Inteligente).
  */
 public record DeclaracaoFiscal(

@@ -22,6 +22,38 @@ split-service/      → split-core
 - O **split-service** roda as máquinas de estado: pagamento, transação, remessa, repasse, estorno e envio. Ainda não consome o Kafka nem chama o oracle-service.
 - A split-lib fica pequena: vocabulário, contratos e só a regra que mais de um serviço aplica igual (veja "A split-lib é o núcleo compartilhado").
 
+## Onde mora cada regra
+
+O que está no caminho síncrono do dinheiro fica junto da gravação, no oracle-service. O que reage a um fato já gravado fica no split-service.
+
+```
+        síncrono (caminho do dinheiro)                          assíncrono (reação)
+STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay──▶ Kafka ──▶ split-service
+          traduz e tria     grava os fatos e calcula                       dobra os fatos, roda máquinas e ponte
+                            a segregação, numa transação só                │
+                                       ▲                                   │
+                                       └──────────────REST─────────────────┘ grava o fato novo (+ OUTBOX)
+```
+
+| Onde | Mora nele | Não mora |
+|---|---|---|
+| adapters TED, TEF, PXE | Traduzir a mensagem da liquidação e triar (com split, sem split, inválido). Chamar o oracle-service e só confirmar a mensagem de origem depois do sucesso. | Estado, cálculo |
+| oracle-service | Gravar fato e OUTBOX numa transação, unicidade e idempotência, invariantes de linha, leitura dos fatos, relay. E o cálculo na liquidação (`Segregacao`, `OrigemReferencia`, `VigenciaRetorno`). | Máquina, prazo, decidir o que enviar |
+| split-service | Tudo o que reage a um fato: as máquinas, a ponte, qual informe cada passo gera, prazos e alertas, conciliação do estorno. | Acesso ao banco |
+| pp-adapter | O protocolo da PP: JSON, assinatura, códigos RSUP, regras de campo, HTTP, reenvio do mesmo comando. | Decidir o que enviar |
+| split-lib | Vocabulário, contratos e regra que mais de um serviço aplica igual (`TriagemInteligente`). | Regra de um serviço só |
+
+- **O cálculo é a exceção.** O PSP calcula "no momento da liquidação" e só então repassa o valor líquido ao Recebedor Indireto (Operações, p. 30).
+  O cálculo não pode esperar o Kafka, e o valor vigente usado tem de ser o que fica gravado com o pagamento.
+- **Outbox.** O adapter só confirma a mensagem de origem depois que o POST responde sucesso. O relay é um só, no oracle-service,
+  porque só ele lê a OUTBOX; apaga a linha depois do ack do broker. A entrega é pelo menos uma vez: quem consome descarta a repetida pelo `idEvento`.
+- **Não por arranjo.** A regra de cada arranjo não vai para o adapter dele. Depois da liquidação, a vida do pagamento chega por outros caminhos
+  (resposta da PP, TES e STR para todos os arranjos, Núclea, horários), e nas máquinas o arranjo só pesa em poucos fatos: `viaNuclea`,
+  `admiteAtualizacao`, `superInteligente`. A diferença entre arranjos é dado (`Arranjo`, `CONFIGURACAO_ARRANJO`), não código separado.
+  No adapter fica só o que depende da mensagem que ele recebe: tradução, campos do arranjo, entrada da triagem e o marco da liquidação (Operações §6.1).
+- **Concorrência.** O split-service não tem banco: lê os fatos da instância, decide e pede a gravação. Como vários serviços gravam fatos,
+  o pedido leva quantos fatos foram dobrados, e o oracle-service recusa se chegou um novo nesse meio-tempo.
+
 ## Onde foi parar cada tipo do arquivo único
 
 "Agora" = escopo de hoje: adapters + oracle-service + biblioteca, do payload até o Kafka.
@@ -84,10 +116,10 @@ split-service/      → split-core
   - Nasce na versão 1 (`Criacao`), com ou sem split. Cada versão nova precisa ser a seguinte, e o pagamento guarda a versão vigente.
   - Tirar os campos fiscais volta a `SemSplit` sem encerrar: a transação pode recebê-los de novo (Operações, histórico da 1.0.1).
   - No PXA a CobR não muda: depois da criação só cabem o encerramento e o pagamento (Operações §4.2.1 e §4.4.1).
-    `InformeTransacao.daVersao` aceitava uma alteração no PXA e agora a recusa também.
+    O informe sai da própria máquina (`InformeTransacao`), então essa regra existe num lugar só.
   - O Retorno não é evento: corrige o cálculo, e não o estado. O pagamento não gera Baixa, porque o Preliminar ou a Segregação fecham a janela (Tempos §5.6).
-  - O informe de cada versão continua em `InformeTransacao.daVersao` e segue as setas: SemSplit → ComSplit é a Iniciada;
-    ComSplit → ComSplit, a Atualizada; ComSplit → SemSplit ou Encerrada, a Baixa.
+  - O informe de cada passo é `InformeTransacao.daTransicao` (e `daCriacao`, na versão 1) e segue as setas: SemSplit → ComSplit é a Iniciada;
+    ComSplit → ComSplit, a Atualizada; ComSplit → SemSplit ou Encerrada, a Baixa. Invalida não gera informe.
 - **Máquina da remessa (`split-service/remessa`).** O Informe de Segregação do próprio PSP, nunca no Boleto (Integração §3.6).
   ```
   Iniciada → Iniciada      lote aceito, novo ou reenviado com o mesmo idLote
@@ -113,7 +145,7 @@ split-service/      → split-core
   Aprovado → Recebido               a RFB ou o CGIBS devolveu o aprovado
   Recebido → Devolvido              o PSP devolveu à parte prejudicada
   ```
-  - O crédito precisa conferir com o aprovado (`ConciliacaoEstorno.confere`) e a devolução, com o crédito; senão, `Invalida`.
+  - O crédito precisa conferir com o aprovado (a conciliação) e a devolução, com o crédito; senão, `Invalida`.
   - O estorno não muda o pagamento: ele continua `Informado`, e o repasse continua devido (Operações §10.1).
   - A Notificação de Transação em Análise não tem máquina: não tem resposta. O que ela muda está no pagamento (`EmAnalise`), e o envio dela é do envio.
 - **Máquina do envio (`split-service/envio`).** Um item de PENDENCIA_ENVIO: Iniciada, Atualizada, Baixa, Preliminar, lote da Segregação ou MOC (Integração §5.1).
@@ -145,12 +177,12 @@ split-service/      → split-core
   Recebedor, pagador original, valor original, vencimento e limite de pagamento foram para `VersaoTransacao`, uma linha por alteração.
   - `DeclaracaoFiscal` usa a mesma chave (txKey, versao) e perdeu `registradaEm`: o horário é o da versão, e vai como `dtHrIni`, `dtHrAtu` ou `dtHrBaixa`.
   - A Baixa não apaga mais a declaração. A remoção dos campos fiscais é uma versão sem declaração; cancelamento e expiração são uma versão `encerrada`.
-  - `InformeTransacao.daVersao(...)` diz se a versão gera Iniciada, Atualizada ou Baixa.
+  - `InformeTransacao`, no split-service, diz se o passo da transação gera Iniciada, Atualizada ou Baixa.
   - `PendenciaEnvio.versaoDeclaracao` virou `versao`. `ItemEnviado` e `CalculoSegregacao` ganharam `versao` (o `ItemLote` a recebe do `ItemEnviado`): o que foi enviado é reconstruível mesmo depois de a transação mudar.
 - `Validacoes.numPgto` aplica o limite de 1 a 999.999.999 nos records que são por pagamento.
 - **Boleto visto do PSP.** O sistema é só PSP. No Boleto, a Núclea envia os informes, consome o Retorno e calcula o segregado
   (Operações §4.1 e §5.4); ao PSP ficam o registro do boleto na Núclea, o Repasse Financeiro e o MOC. `Arranjo.viaNuclea()` diz isso.
-  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente`, `RemessaIniciada` e `Segregacao.calcular`. `InformeTransacao.daVersao` devolve vazio: a versão vai à Núclea.
+  - Não aceitam Boleto: `CursorStream`, `CodigoRsup`, `RetornoSuperInteligente`, `RemessaIniciada` e `Segregacao.calcular`. `InformeTransacao` não gera informe: a versão vai à Núclea.
   - `DadosPagamentoBoleto` ganhou o CBS/IBS Segregado que a Núclea calculou e manda na baixa. No Boleto não há `CalculoSegregacao`.
   - `ItemRepasseBoleto` diz em qual repasse entra cada pagamento de Boleto, papel que nos outros arranjos é da remessa do próprio PSP.
   - `ValorVigenteBoleto` guarda só os valores vigentes que a Núclea manda, sem NSU: o PSP não lê o stream do Boleto nem calcula com eles.
@@ -165,10 +197,10 @@ split-service/      → split-core
 - **`JanelaSuperInteligenteAberta` saiu.** A janela é derivada dos informes aceitos (Iniciada, Baixa, pagamento integral); está descrita em `VersaoTransacao`.
 - **Impeditivo Não Contratual só com fatos.** `TransacaoEmAnalise` é a retenção, imutável; em análise é quem ainda não tem `AnaliseConcluida`.
   - Saiu `notificacao`: a notificação enviada é a `Ocorrencia` do mesmo (txKey, numPgto).
-  - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. `ImpeditivoNaoContratual.prazoNotificacao` recebe o `Pagamento`.
+  - Saiu `liquidadaEm`, que repetia `Pagamento.dataHoraLiquidacao`; entrou `retidaEm`. O prazo da notificação conta da liquidação (`EmAnalise.prazoNotificacao`, no split-service).
 - **Estorno até o fim (Operações §10.4).** Depois da resposta, mais dois fatos por (idOcor, tributo):
   - `EstornoRecebido`: o valor que a RFB (CBS, via TES) ou o CGIBS (IBS, via STR) devolveu. O crédito traz o `idAprovEst`
-    da resposta como NumCtrlTESOr/NumCtrlSTROr, e `ConciliacaoEstorno.confere` compara com o `vlTribEst` aprovado.
+    da resposta como NumCtrlTESOr/NumCtrlSTROr, e a máquina do estorno compara com o `vlTribEst` aprovado.
   - `EstornoDevolvido`: o PSP repassou à parte prejudicada pelo backoffice. Meta 24h, ANS 2 dias úteis, fora do IGA (Tempos §8.1).
   - Recebido sem devolvido = valor da parte prejudicada parado no PSP.
 - **numPgto nos informes da transação.** Iniciada, Atualizada e Baixa usam `TipoInforme.SEM_PAGAMENTO` (0).
@@ -184,10 +216,11 @@ split-service/      → split-core
 - `RegrasInteligente` virou `TriagemInteligente`, que diz o que ela faz.
 - **Regras fora dos records.** Um record de tabela fica com as invariantes do construtor, com o que deriva da própria linha
   (`tinhaEmAberto`, `cabeEm`, `consumidoNoPrazo`, `tokenValidoEm`) e com os `ler`, `texto` e `de`.
-  A regra que combina linhas foi para `oracle-service/operacao`, em classes `final` só com funções `static`, porque o Java não tem função solta:
-  - `VigenciaRetorno`: `mudaCalculo`, `dobrar` e `valorDe` (eram de `VersaoTransacao` e `ValorVigente`);
-  - `InformeTransacao.daVersao` (era `VersaoTransacao.informe`);
-  - `ConciliacaoEstorno.confere` (era de `EstornoRecebido`) e `ImpeditivoNaoContratual.prazoNotificacao` (era de `TransacaoEmAnalise`).
+  A regra que combina linhas vai para classes `final` só com funções `static`, porque o Java não tem função solta:
+  - `VigenciaRetorno` (`oracle-service/operacao`): `mudaCalculo`, `dobrar` e `valorDe` (eram de `VersaoTransacao` e `ValorVigente`). Fica no oracle-service com o cálculo;
+  - no split-service, porque são reação e não cálculo (veja "Onde mora cada regra"): `InformeTransacao` (era `VersaoTransacao.informe`, depois `InformeTransacao.daVersao` no oracle-service),
+    a conciliação do estorno (era `EstornoRecebido`, depois `ConciliacaoEstorno.confere`; agora é a seta Aprovado → Recebido)
+    e `EmAnalise.prazoNotificacao` (era de `TransacaoEmAnalise`, depois `ImpeditivoNaoContratual.prazoNotificacao`).
 - **A split-lib é o núcleo compartilhado, e pequeno.** Fica nela o vocabulário (tipos de valor, ids e enums do manual),
   o contrato dos eventos e a `TriagemInteligente`, que os três adapters aplicam igual. Regra que só um serviço executa mora nele:
   se ela estivesse na lib, toda mudança viraria uma versão nova da qual todos os serviços dependem.

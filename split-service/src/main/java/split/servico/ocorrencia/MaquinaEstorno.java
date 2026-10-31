@@ -47,7 +47,7 @@ public final class MaquinaEstorno {
                 case Respondida(Parecer.NaoAceita _, _) -> ok(new NaoAceito());
                 case Respondida _, EstornoRecebido _, EstornoDevolvido _ -> invalida(estado, evento);
             };
-            // O crédito confere com o aprovado (ConciliacaoEstorno.confere, no oracle-service). Se não confere, Invalida, para alertar.
+            // A conciliação: o crédito confere com o aprovado. Se não confere, Invalida, para alertar.
             case Aprovado(var aprovado) -> switch (evento) {
                 case EstornoRecebido(var valor) when valor.equals(aprovado) -> ok(new Recebido(valor));
                 case EstornoRecebido _, Respondida _, EstornoDevolvido _ -> invalida(estado, evento);

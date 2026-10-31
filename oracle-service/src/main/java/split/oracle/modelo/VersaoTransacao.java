@@ -12,7 +12,8 @@ import split.core.Cnpj;
  * Toda alteração da transação grava uma versão nova com o estado completo. Assim um informe reenviado
  * sai com os dados da versão que o gerou, nunca com os de uma versão posterior.
  * DECLARACAO_FISCAL usa a mesma chave: a declaração da versão N é a linha (txKey, N).
- * O informe que cada versão gera sai de InformeTransacao.daVersao; se ela muda o cálculo, de VigenciaRetorno.mudaCalculo.
+ * O informe que cada versão gera é decisão do split-service (InformeTransacao, na máquina da transação);
+ * se ela muda o cálculo, VigenciaRetorno.mudaCalculo.
  *
  * cnpjPagadorOriginal, dataVencimento e dataHoraLimitePagamento: null = não informado.
  * encerrada: a transação acabou sem pagamento (cancelamento, expiração, baixa do boleto sem pagamento).

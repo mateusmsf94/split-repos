@@ -70,6 +70,13 @@ class MaquinaPagamentoTest {
     }
 
     @Test
+    void prazoDaNotificacaoContaDaLiquidacaoENaoDaRetencao() {
+        var t = MaquinaPagamento.reconstruir(Arranjo.PXE, new Liquidacao(LIQUIDADO_EM), List.of(new Retido()));
+        var emAnalise = assertInstanceOf(EmAnalise.class, estado(t));
+        assertEquals(Instant.parse("2026-10-31T13:00:00Z"), emAnalise.prazoNotificacao());
+    }
+
+    @Test
     void analiseNaoAceitaTiraDoSplit() {
         var t = MaquinaPagamento.reconstruir(Arranjo.TEF, new Liquidacao(LIQUIDADO_EM),
                 List.of(new Retido(), new AnaliseNaoAceita(DEPOIS)));
