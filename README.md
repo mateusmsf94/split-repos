@@ -27,26 +27,33 @@ split-service/      → split-core
 O que está no caminho síncrono do dinheiro fica junto da gravação, no oracle-service. O que reage a um fato já gravado fica no split-service.
 
 ```
-        síncrono (caminho do dinheiro)                          assíncrono (reação)
-STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay──▶ Kafka ──▶ split-service
-          traduz e tria     grava os fatos e calcula                       dobra os fatos, roda máquinas e ponte
-                            a segregação, numa transação só                │
-                                       ▲                                   │
-                                       └──────────────REST─────────────────┘ grava o fato novo (+ OUTBOX)
+        síncrono (caminho do dinheiro)                       assíncrono (reação)
+STR/SPI → adapter ──REST──▶ oracle-service: grava os fatos e a OUTBOX e calcula a segregação, numa transação só
+          traduz    ◀── sucesso ──
+          e tria
+            └─ relay do adapter ──▶ Kafka ──▶ split-service: dobra os fatos, roda máquinas e ponte
+               ack: marca a OUTBOX                           └─REST─▶ oracle-service: grava o fato novo,
+                                                                         e o relay do split-service o publica
 ```
 
 | Onde | Mora nele | Não mora |
 |---|---|---|
-| adapters TED, TEF, PXE | Traduzir a mensagem da liquidação e triar (com split, sem split, inválido). Chamar o oracle-service e só confirmar a mensagem de origem depois do sucesso. | Estado, cálculo |
-| oracle-service | Gravar fato e OUTBOX numa transação, unicidade e idempotência, invariantes de linha, leitura dos fatos, relay. E o cálculo na liquidação (`Segregacao`, `OrigemReferencia`, `VigenciaRetorno`). | Máquina, prazo, decidir o que enviar |
-| split-service | Tudo o que reage a um fato: as máquinas, a ponte, qual informe cada passo gera, prazos e alertas, conciliação do estorno. | Acesso ao banco |
-| pp-adapter | O protocolo da PP: JSON, assinatura, códigos RSUP, regras de campo, HTTP, reenvio do mesmo comando. | Decidir o que enviar |
+| adapters TED, TEF, PXE | Traduzir a mensagem da liquidação e triar (com split, sem split, inválido). Gravar pelo oracle-service e só confirmar a mensagem de origem depois do sucesso. O relay: publicar no Kafka o que gravou. | Estado, cálculo |
+| oracle-service | Gravar fato e OUTBOX numa transação, unicidade e idempotência, invariantes de linha, leitura dos fatos e das linhas pendentes da OUTBOX. E o cálculo na liquidação (`Segregacao`, `OrigemReferencia`, `VigenciaRetorno`). | Máquina, prazo, decidir o que enviar, Kafka |
+| split-service | Tudo o que reage a um fato: as máquinas, a ponte, qual informe cada passo gera, prazos e alertas, conciliação do estorno. O relay: publicar no Kafka o que gravou. | Acesso ao banco |
+| pp-adapter | O protocolo da PP: JSON, assinatura, códigos RSUP, regras de campo, HTTP, reenvio do mesmo comando. O relay: publicar no Kafka o que gravou. | Decidir o que enviar |
 | split-lib | Vocabulário, contratos e regra que mais de um serviço aplica igual (`TriagemInteligente`). | Regra de um serviço só |
 
 - **O cálculo é a exceção.** O PSP calcula "no momento da liquidação" e só então repassa o valor líquido ao Recebedor Indireto (Operações, p. 30).
   O cálculo não pode esperar o Kafka, e o valor vigente usado tem de ser o que fica gravado com o pagamento.
-- **Outbox.** O adapter só confirma a mensagem de origem depois que o POST responde sucesso. O relay é um só, no oracle-service,
-  porque só ele lê a OUTBOX; apaga a linha depois do ack do broker. A entrega é pelo menos uma vez: quem consome descarta a repetida pelo `idEvento`.
+- **Outbox: quem grava, publica.** Cada serviço que grava pelo oracle-service tem o seu relay: os adapters publicam o pagamento recebido,
+  o split-service as pendências de envio, o pp-adapter as respostas da PP. O oracle-service não fala com o Kafka.
+  - O adapter grava de forma síncrona e só confirma a mensagem de origem depois do sucesso do POST.
+  - Com o sucesso, o relay publica o evento no Kafka; com o ack do broker, pede ao oracle-service que marque a linha da OUTBOX como publicada.
+  - Se o Kafka estiver fora, ou o serviço cair entre o sucesso e o ack, a linha fica pendente. O relay pede ao oracle-service as linhas
+    pendentes dos tipos que ele publica, há mais de alguns segundos para não disputar com a publicação normal, e as publica.
+    Uma linha de TEF pode sair pelo ted-adapter: o evento é o mesmo, então a OUTBOX não precisa dizer quem gravou.
+  - A entrega é pelo menos uma vez: quem consome descarta a repetida pelo `idEvento`.
 - **Não por arranjo.** A regra de cada arranjo não vai para o adapter dele. Depois da liquidação, a vida do pagamento chega por outros caminhos
   (resposta da PP, TES e STR para todos os arranjos, Núclea, horários), e nas máquinas o arranjo só pesa em poucos fatos: `viaNuclea`,
   `admiteAtualizacao`, `superInteligente`. A diferença entre arranjos é dado (`Arranjo`, `CONFIGURACAO_ARRANJO`), não código separado.
@@ -284,7 +291,7 @@ STR/SPI → adapter ──REST──▶ oracle-service ──OUTBOX → relay─
   - o consumo do Kafka e as chamadas do split-service ao oracle-service;
   - o controller REST e o repositório JDBC/JPA do oracle-service;
   - a serialização JSON do evento;
-  - o relay da OUTBOX.
+  - o relay de cada serviço que grava (adapters, split-service, pp-adapter) e, no oracle-service, a leitura das linhas pendentes da OUTBOX e a marcação de publicada.
 
 ## Como compilar
 
