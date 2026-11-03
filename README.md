@@ -92,6 +92,7 @@ STR/SPI → adapter ──REST──▶ oracle-service: grava os fatos e a OUTBO
 - `oracle-service/modelo/MensagemOutbox`: a tabela OUTBOX.
 - `oracle-service/operacao/RegistroPagamentoRecebido`: o `POST /pagamentos-recebidos`, que transforma o evento nas linhas gravadas numa transação só.
 - `TradutorTed`, `TradutorTef`, `TradutorPxe`: um por adapter.
+- Os diagramas das máquinas e da ponte, em Mermaid, estão em [MAQUINAS.md](MAQUINAS.md).
 - **Máquina do pagamento (`split-service/pagamento`).** Uma só para os seis arranjos: funções puras em `MaquinaPagamento`,
   sobre `EstadoPagamento` e `EventoPagamento`.
   ```
